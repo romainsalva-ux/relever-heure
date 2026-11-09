@@ -1031,10 +1031,14 @@ function weekAgg(a,b){
   return res;
 }
 function eqList(agg){
-  var out=[];
+  var out=[],known={};
   S.folders.forEach(function(f){
-    S.sites.filter(function(s){return s.folderId===f.id&&(eq.site==='all'?agg[s.id]:s.id===eq.site)}).forEach(function(s){out.push({f:f,s:s})});
+    S.sites.filter(function(s){return s.folderId===f.id&&(eq.site==='all'?agg[s.id]:s.id===eq.site)}).forEach(function(s){out.push({f:f,s:s});known[s.id]=1});
   });
+  if(eq.site==='all'){
+    S.sites.forEach(function(s){known[s.id]=1});
+    Object.keys(agg).forEach(function(id){if(!known[id])out.push({f:{id:'?',name:'Sans dossier'},s:{id:id,folderId:'?',name:'Chantier inconnu'}})});
+  }
   return out;
 }
 function eqTitle(x,sep){return x.f.name.trim().toLowerCase()===x.s.name.trim().toLowerCase()?x.s.name:x.f.name+sep+x.s.name}
