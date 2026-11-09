@@ -1551,6 +1551,8 @@ async function start(){
   await loadStore();
   document.body.classList.remove('loading');
   $('[data-tab=equipe]').hidden=false;if(!ROLE.admin)$('[data-tab=equipe]').textContent='Ma feuille';
+  $('[data-tab=sites]').hidden=!ROLE.admin;
+  if(!ROLE.admin&&view.tab==='sites')view.tab='saisie';
   $('#pinBtn').hidden=(AUTH&&AUTH.uid==='chef');
   renderWho();
   setSave(Store&&Store.kind==='cloud'?'Enregistré':'Sur cet appareil');
