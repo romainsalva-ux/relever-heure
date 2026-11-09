@@ -747,7 +747,8 @@ function clearDemo(){
 
 /* ---------- Chantiers ---------- */
 function renderSites(msg,cls){
-  if(!ROLE.admin){$('#tab-sites').innerHTML='<div class="sec"><h2>Chantiers et dossiers</h2><p class="hint">Liste tenue par le responsable. Pour ajouter ou renommer un chantier, contactez-le.</p>'+S.folders.map(function(f){return '<div class="panel"><h3>'+esc(f.name)+'</h3><ul>'+S.sites.filter(function(s){return s.folderId===f.id}).map(function(s){return '<li>'+esc(s.name)+'</li>'}).join('')+'</ul></div>'}).join('')+'</div>';return}
+  if(dossierSite){renderDossier();return}
+  if(!ROLE.admin){$('#tab-sites').innerHTML='<div class="sec"><h2>Chantiers et dossiers</h2><p class="hint">Liste tenue par le responsable. Pour ajouter ou renommer un chantier, contactez-le.</p>'+S.folders.map(function(f){return '<div class="panel"><h3>'+esc(f.name)+'</h3><ul>'+S.sites.filter(function(s){return s.folderId===f.id}).map(function(s){return '<li>'+esc(s.name)+' <button class="link" data-act="open-site" data-sid="'+s.id+'">Voir le dossier</button></li>'}).join('')+'</ul></div>'}).join('')+'</div>';return}
   var h='<div class="sec"><h2>Chantiers et dossiers</h2><div class="panel"><h3>Nouveau chantier</h3><div class="addrow" style="margin:0"><input type="text" id="newsite" placeholder="Nom du chantier" aria-label="Nom du nouveau chantier" autocomplete="off"><button class="btn primary" data-act="add-site-top">Ajouter</button></div></div><p class="hint">Le chantier est enregistré dans le dossier ci-dessous et apparaît tout de suite dans la saisie de chacun. Pour changer un nom, modifiez-le dans son champ puis quittez le champ : il s\u2019enregistre et se met à jour partout, y compris dans les exports.</p><div class="folders">';
   S.folders.forEach(function(f){
     var ss=S.sites.filter(function(s){return s.folderId===f.id});
@@ -755,7 +756,7 @@ function renderSites(msg,cls){
     ss.forEach(function(s){
       h+='<div class="site"><input type="text" data-sname="'+s.id+'" value="'+esc(s.name)+'" aria-label="Nom du chantier">'+
         '<select data-smove="'+s.id+'" aria-label="Déplacer vers un dossier">'+S.folders.map(function(g){return '<option value="'+g.id+'"'+(g.id===s.folderId?' selected':'')+'>'+esc(g.name)+'</option>'}).join('')+'</select>'+
-        '<button class="btn icon" data-act="del-site" data-sid="'+s.id+'" aria-label="Supprimer le chantier">✕</button></div>';
+        '<button class="btn icon" data-act="del-site" data-sid="'+s.id+'" aria-label="Supprimer le chantier">✕</button></div><div style="margin:-4px 0 10px"><button class="link" data-act="open-site" data-sid="'+s.id+'">Ouvrir le dossier de ce chantier</button></div>';
     });
     if(!ss.length)h+='<p class="hint">Dossier vide.</p>';
     h+='</div>';
@@ -764,6 +765,126 @@ function renderSites(msg,cls){
     '<div class="msg'+(cls?' '+cls:'')+'" id="sitesMsg" aria-live="polite">'+esc(msg||'')+'</div></div>';
   $('#tab-sites').innerHTML=h;
 }
+/* ---------- Dossier d'un chantier ---------- */
+var dossierSite=null;
+function siteData(sid){
+  var persons={},weeks={},all=[],dates={};
+  ROSTER.forEach(function(p){
+    withDays(p.id,function(){
+      Object.keys(S.days).sort().forEach(function(k){
+        var e=S.days[k];if(!e||!e.lines)return;
+        var lines=e.lines.filter(function(l){return !isBlank(l)});
+        var ig=igdOf(k),pg=pigdOf(k);
+        lines.forEach(function(l,j){
+          if(l.siteId!==sid)return;
+          var o={date:k,type:l.type,from:l.from||'',to:l.to||'',h:+l.h||0,km:+l.km||0,rh:roadOf(l),igd:j===0?ig:0,pigd:j===0?pg:0,pid:p.id,name:p.name||'(sans nom)'};
+          (persons[p.id]||(persons[p.id]={name:o.name,lines:[],dates:{}})).lines.push(o);
+          persons[p.id].dates[k]=1;dates[k]=1;
+          var mon=mondayOf(k),w=weeks[mon]||(weeks[mon]={});
+          (w[p.id]||(w[p.id]={name:o.name,lines:[]})).lines.push(o);
+          all.push(o);
+        });
+      });
+    });
+  });
+  return {persons:persons,weeks:weeks,all:all,ndays:Object.keys(dates).length};
+}
+function dossierRows(d){
+  var per=Object.keys(d.persons).sort(function(a,b){return d.persons[a].name.localeCompare(d.persons[b].name)}).map(function(pid){
+    var q=d.persons[pid],s=sumLines(q.lines);
+    return {name:q.name,days:Object.keys(q.dates).length,s:s};
+  });
+  var wk=Object.keys(d.weeks).sort().map(function(mon){
+    var w=d.weeks[mon],ids=Object.keys(w).sort(function(a,b){return w[a].name.localeCompare(w[b].name)});
+    var all=[];ids.forEach(function(i){all=all.concat(w[i].lines)});
+    return {mon:mon,rows:ids.map(function(i){return {name:w[i].name,s:sumLines(w[i].lines)}}),tot:sumLines(all)};
+  });
+  return {per:per,wk:wk};
+}
+function renderDossier(){
+  var s=siteById(dossierSite);if(!s){dossierSite=null;renderSites();return}
+  var f=folderById(s.folderId),d=siteData(s.id),t=sumLines(d.all),r=dossierRows(d);
+  var h='<div class="sec"><div class="mnav"><button class="btn" data-act="dossier-back">‹ Retour</button><h2>'+esc(s.name)+'</h2><span></span></div>'+
+    '<p class="hint">Dossier : '+esc(f?f.name:'')+' · toutes les saisies enregistrées sur ce chantier'+(ROLE.admin?', tous plongeurs confondus':' (vos heures)')+'.</p>'+
+    '<div class="stats">'+statsHtml(Object.assign({days:d.ndays,ferie:0,intemp:0},t))+'</div>'+
+    '<div class="panel" style="display:flex;flex-wrap:wrap;gap:10px"><button class="btn primary" data-act="dossier-pdf"'+(dl?'':' disabled')+'>Dossier en PDF</button><button class="btn primary" data-act="dossier-xlsx"'+(dl?'':' disabled')+'>Dossier en Excel</button></div>'+
+    '<div class="msg" id="sitesMsg" aria-live="polite"></div>';
+  if(!d.all.length){h+='<div class="empty-note">Aucune heure saisie sur ce chantier pour le moment.</div></div>';$('#tab-sites').innerHTML=h;return}
+  h+='<div class="sec"><h3>Total par plongeur</h3><div class="tw"><table class="eq"><thead><tr><th>Plongeur</th><th>Jours</th><th>Heures</th><th>Km</th><th>H route</th><th>IGD</th><th>Petit IGD</th></tr></thead><tbody>'+
+    r.per.map(function(p){return '<tr><td>'+esc(p.name)+'</td><td>'+p.days+'</td><td><b>'+fnum(p.s.h)+'</b></td><td>'+fkm(p.s.km)+'</td><td>'+fnum(p.s.rh)+'</td><td>'+p.s.igd+'</td><td>'+p.s.pigd+'</td></tr>'}).join('')+
+    '<tr class="tot"><td>Total chantier</td><td>'+d.ndays+'</td><td>'+fnum(t.h)+'</td><td>'+fkm(t.km)+'</td><td>'+fnum(t.rh)+'</td><td>'+t.igd+'</td><td>'+t.pigd+'</td></tr></tbody></table></div></div>';
+  h+='<div class="sec"><h3>Semaine par semaine</h3><div class="tw"><table class="eq"><thead><tr><th>Semaine / plongeur</th><th>Heures</th><th>Km</th><th>H route</th><th>IGD</th><th>Petit IGD</th></tr></thead><tbody>';
+  r.wk.forEach(function(w){
+    h+='<tr class="grp"><td colspan="6">Semaine '+isoWeek(w.mon)+' · du '+fdate(w.mon)+' au '+fdate(shiftIso(w.mon,6))+'</td></tr>';
+    w.rows.forEach(function(p){h+='<tr><td>'+esc(p.name)+'</td><td>'+fnum(p.s.h)+'</td><td>'+fkm(p.s.km)+'</td><td>'+fnum(p.s.rh)+'</td><td>'+p.s.igd+'</td><td>'+p.s.pigd+'</td></tr>'});
+    if(w.rows.length>1)h+='<tr class="tot"><td>Total semaine</td><td>'+fnum(w.tot.h)+'</td><td>'+fkm(w.tot.km)+'</td><td>'+fnum(w.tot.rh)+'</td><td>'+w.tot.igd+'</td><td>'+w.tot.pigd+'</td></tr>';
+  });
+  h+='</tbody></table></div></div></div>';
+  $('#tab-sites').innerHTML=h;
+}
+async function exportDossier(kind){
+  var msg=$('#sitesMsg');msg.className='msg';
+  var s=siteById(dossierSite);if(!s)return;
+  if(!dl){msg.className='msg err';msg.textContent='L’export n’est pas disponible dans cette vue.';return}
+  var f=folderById(s.folderId),d=siteData(s.id),t=sumLines(d.all),r=dossierRows(d);
+  if(!d.all.length){msg.className='msg err';msg.textContent='Aucune saisie à exporter.';return}
+  var slug=function(x){return String(x||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')};
+  var base='chantier_'+slug(s.name);
+  var perHead=['Plongeur','Jours','Heures','Km','H route','IGD','Petit IGD'];
+  var perRows=r.per.map(function(p){return [p.name,p.days,p.s.h,p.s.km,p.s.rh,p.s.igd,p.s.pigd]});
+  var perTot=['Total chantier',d.ndays,t.h,t.km,t.rh,t.igd,t.pigd];
+  var wkHead=['Semaine','Du','Au','Plongeur','Heures','Km','H route','IGD','Petit IGD'];
+  var wkRows=[];
+  r.wk.forEach(function(w){
+    w.rows.forEach(function(p){wkRows.push(['S'+pad(isoWeek(w.mon)),fdate(w.mon),fdate(shiftIso(w.mon,6)),p.name,p.s.h,p.s.km,p.s.rh,p.s.igd,p.s.pigd])});
+    if(w.rows.length>1)wkRows.push(['S'+pad(isoWeek(w.mon)),fdate(w.mon),fdate(shiftIso(w.mon,6)),'Total semaine',w.tot.h,w.tot.km,w.tot.rh,w.tot.igd,w.tot.pigd]);
+  });
+  try{
+    if(kind==='pdf'){
+      if(!(window.jspdf&&window.jspdf.jsPDF))throw new Error('lib');
+      var doc=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+      if(typeof doc.autoTable!=='function')throw new Error('lib');
+      doc.setFontSize(20);doc.text('Dossier chantier - '+s.name,14,16);
+      doc.setFontSize(11);doc.text('Dossier : '+(f?f.name:''),14,23);
+      var fm=function(rw){return rw.map(function(c,j){return j===0?c:(j===3?fkm(c):(j===1||j===5||j===6?String(c):fnum(c)))})};
+      var common={styles:{fontSize:10,cellPadding:2,valign:'middle'},headStyles:{fillColor:[13,34,49],textColor:255,fontStyle:'bold'},footStyles:{fillColor:[225,232,236],textColor:20,fontStyle:'bold'},
+        didParseCell:function(x){x.cell.styles.valign='middle';if(x.column.index>=1)x.cell.styles.halign='center'}};
+      doc.autoTable(Object.assign({startY:28,head:[perHead],body:perRows.map(fm),foot:[fm(perTot)],showFoot:'lastPage'},common));
+      doc.setFontSize(13);var y=doc.lastAutoTable.finalY+10;doc.text('Semaine par semaine',14,y);
+      var fw=function(rw){return rw.map(function(c,j){return j<4?c:(j===5?fkm(c):(j>=7?String(c):fnum(c)))})};
+      doc.autoTable(Object.assign({startY:y+3,head:[wkHead],body:wkRows.map(fw),
+        didParseCell:function(x){x.cell.styles.valign='middle';if(x.column.index>=4)x.cell.styles.halign='center';if(x.section==='body'&&String(x.row.raw[3])==='Total semaine'){x.cell.styles.fontStyle='bold';x.cell.styles.fillColor=[225,232,236]}}},
+        {styles:common.styles,headStyles:common.headStyles}));
+      await dl.save({filename:base+'.pdf',data:doc.output('arraybuffer')});
+    }else{
+      if(!window.XLSX)throw new Error('lib');
+      var X=window.XLSX,wb=X.utils.book_new();
+      var ws1=X.utils.aoa_to_sheet([['Dossier chantier - '+s.name],['Dossier : '+(f?f.name:'')],[],perHead].concat(perRows,[perTot]));
+      ws1['!cols']=[{wch:28},{wch:8},{wch:10},{wch:10},{wch:10},{wch:8},{wch:10}];
+      X.utils.book_append_sheet(wb,ws1,'Récapitulatif');
+      var ws2=X.utils.aoa_to_sheet([wkHead].concat(wkRows));
+      ws2['!cols']=[{wch:10},{wch:12},{wch:12},{wch:28},{wch:10},{wch:10},{wch:10},{wch:8},{wch:10}];
+      X.utils.book_append_sheet(wb,ws2,'Par semaine');
+      var det=d.all.slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.name.localeCompare(b.name)}).map(function(l){return [fdate(l.date),JC[dow(l.date)].replace('.',''),'S'+pad(isoWeek(l.date)),l.name,typeLabel(l.type),l.from,l.to,l.h,l.km,l.rh,l.igd,l.pigd]});
+      var ws3=X.utils.aoa_to_sheet([['Date','Jour','Semaine','Plongeur','Trajet','Départ','Arrivée','Heures','Km','H route','IGD','Petit IGD']].concat(det));
+      ws3['!cols']=[{wch:12},{wch:6},{wch:9},{wch:26},{wch:16},{wch:18},{wch:18},{wch:9},{wch:8},{wch:9},{wch:6},{wch:10}];
+      X.utils.book_append_sheet(wb,ws3,'Détail jours');
+      await dl.save({filename:base+'.xlsx',data:new Blob([X.write(wb,{bookType:'xlsx',type:'array'})])});
+    }
+    msg.className='msg ok';msg.textContent='Fichier prêt.';
+  }catch(err){
+    msg.className='msg err';
+    if(err&&err.code==='declined')msg.textContent='Téléchargement annulé.';
+    else if(err&&err.message==='lib')msg.textContent='Le module d’export n’a pas pu se charger. Rechargez la page.';
+    else msg.textContent='Le fichier n’a pas pu être créé.';
+  }
+}
+function defaultFolderId(){
+  if(!S.folders.length)return null;
+  for(var i=0;i<S.folders.length;i++){if(S.sites.some(function(s){return s.folderId===S.folders[i].id}))return S.folders[i].id}
+  return S.folders[0].id;
+}
+
 function siteUses(id){var n=0;Object.keys(ALL).forEach(function(pid){var d=ALL[pid]||{};Object.keys(d).forEach(function(k){d[k].lines.forEach(function(l){if(l.siteId===id&&!isBlank(l))n++})})});return n}
 
 /* ---------- Export ---------- */
@@ -1256,7 +1377,7 @@ async function exportEquipeImg(){
 
 /* ---------- Navigation ---------- */
 function showTab(t){
-  view.tab=t;
+  view.tab=t;if(t!=='sites')dossierSite=null;
   $$('.tabs button').forEach(function(b){b.setAttribute('aria-selected',String(b.dataset.tab===t))});
   ['saisie','semaine','equipe','recap','sites','export'].forEach(function(n){$('#tab-'+n).hidden=n!==t});
   if(t==='saisie'){ensureDay(view.sel);renderCal();renderEditor()}
@@ -1350,7 +1471,11 @@ st.addEventListener('change',function(e){
 st.addEventListener('click',function(e){
   var b=e.target.closest('[data-act]');if(!b)return;var a=b.dataset.act;
   if(a==='add-folder'){var n=$('#newfolder').value.trim();if(!n){renderSites('Saisissez un nom de dossier.','err');return}S.folders.push({id:'f'+rid(),name:n});markDirty();renderSites('Dossier créé.','ok')}
-  else if(a==='add-site-top'){var it=$('#newsite');var nn=(it.value||'').trim();if(!nn){renderSites('Saisissez un nom de chantier.','err');return}if(!S.folders.length)S.folders.push({id:'f'+rid(),name:'Chantiers'});S.sites.push({id:'s'+rid(),folderId:S.folders[0].id,name:nn});markDirty();renderSites('Chantier « '+nn+' » ajouté.','ok')}
+  else if(a==='open-site'){dossierSite=b.dataset.sid;renderSites()}
+  else if(a==='dossier-back'){dossierSite=null;renderSites()}
+  else if(a==='dossier-pdf'){exportDossier('pdf')}
+  else if(a==='dossier-xlsx'){exportDossier('xlsx')}
+  else if(a==='add-site-top'){var it=$('#newsite');var nn=(it.value||'').trim();if(!nn){renderSites('Saisissez un nom de chantier.','err');return}if(!S.folders.length)S.folders.push({id:'f'+rid(),name:'Chantiers'});S.sites.push({id:'s'+rid(),folderId:defaultFolderId(),name:nn});markDirty();renderSites('Chantier « '+nn+' » ajouté.','ok')}
   else if(a==='add-site'){var inp=$('#newsite-'+b.dataset.fid);var nm=inp.value.trim();if(!nm){renderSites('Saisissez un nom de chantier.','err');return}S.sites.push({id:'s'+rid(),folderId:b.dataset.fid,name:nm});markDirty();renderSites('Chantier ajouté.','ok')}
   else if(a==='del-site'){var n2=siteUses(b.dataset.sid);if(n2){renderSites('Ce chantier est utilisé dans '+n2+' ligne'+(n2>1?'s':'')+' de saisie. Retirez-les avant de le supprimer.','err');return}
     armed(b,'Sûr ?',function(){S.sites=S.sites.filter(function(s){return s.id!==b.dataset.sid});markDirty();renderSites('Chantier supprimé.','ok')})}
