@@ -1089,7 +1089,7 @@ function renderEquipe(){
   var h='<div class="sec"><div class="mnav"><button class="btn icon" data-eq="prev" aria-label="Semaine précédente">‹</button><h2>Équipe · semaine '+isoWeek(a)+'</h2><button class="btn icon" data-eq="next" aria-label="Semaine suivante">›</button></div>'+
     '<p class="hint wkhead">du '+longDate(a)+' au '+longDate(b)+'</p>'+
     '<div class="panel" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end"><label class="f" style="flex:1;min-width:220px"><span class="l">Chantier</span><select id="eqSite">'+opts+'</select></label>'+
-    '<button class="btn primary" data-eq="pdf"'+(dl?'':' disabled')+'>Feuille en PDF</button><button class="btn primary" data-eq="xlsx"'+(dl?'':' disabled')+'>Feuille en Excel</button><button class="btn" data-eq="refresh">Actualiser</button></div>'+
+    '<button class="btn primary" data-eq="pdf"'+(dl?'':' disabled')+'>Feuille en PDF</button><button class="btn primary" data-eq="xlsx"'+(dl?'':' disabled')+'>Feuille en Excel</button><button class="btn primary" data-eq="img"'+(dl?'':' disabled')+'>Image à envoyer par mail</button><button class="btn" data-eq="refresh">Actualiser</button></div>'+
     '<div class="msg" id="eqMsg" aria-live="polite"></div>';
   var shown=0;
   list.forEach(function(x){
@@ -1181,6 +1181,65 @@ async function exportEquipe(kind){
     else if(err&&err.message==='lib')msg.textContent='Le module d’export n’a pas pu se charger. Rechargez la page.';
     else msg.textContent='Le fichier n’a pas pu être créé.';
   }
+}
+
+async function exportEquipeImg(){
+  var msg=$('#eqMsg');msg.className='msg';
+  var a=eq.week,b=shiftIso(a,6),agg=weekAgg(a,b),days7=[],i;
+  for(i=0;i<7;i++)days7.push(shiftIso(a,i));
+  var list=eqList(agg).filter(function(x){return agg[x.s.id]&&Object.keys(agg[x.s.id]).length});
+  if(!list.length){msg.className='msg err';msg.textContent='Aucune saisie à envoyer cette semaine.';return}
+  var scope=eq.site==='all'?'Tous les chantiers':'Chantier : '+(siteById(eq.site)?siteById(eq.site).name:'');
+  var slug=function(s){return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')};
+  var base='equipe_S'+pad(isoWeek(a))+'_'+a+(eq.site==='all'?'':'_'+slug(siteName(eq.site)));
+  var heads=['Plongeur'].concat(days7.map(function(k){return JC[dow(k)].replace('.','').toUpperCase()+' '+fdate(k).slice(0,5)}),['Heures','Km','H route','IGD','Petit IGD']);
+  var cw=[250,92,92,92,92,92,92,92,100,86,100,76,110],W=0;cw.forEach(function(c){W+=c});
+  var M=24,RH=46,blocks=list.map(function(x){return {x:x,m:eqMatrix(x,agg,days7)}});
+  var H=M+90;blocks.forEach(function(bk){H+=44+RH*(bk.m.rows.length+2)+30});
+  H+=M;
+  var S2=2,cv=document.createElement('canvas');cv.width=(W+2*M)*S2;cv.height=H*S2;
+  var c=cv.getContext('2d');c.scale(S2,S2);
+  var F='"Barlow","Helvetica Neue",Arial,sans-serif';
+  c.fillStyle='#fff';c.fillRect(0,0,W+2*M,H);
+  c.fillStyle='#0D2231';c.textBaseline='middle';
+  c.font='700 30px '+F;c.textAlign='left';c.fillText('Équipe – semaine '+isoWeek(a),M,M+18);
+  c.font='400 18px '+F;c.fillStyle='#566B79';c.fillText('Du '+fdate(a)+' au '+fdate(b)+'  ·  '+scope,M,M+52);
+  var y=M+90;
+  var fmt=function(v,j){return (j===0||v==='')?v:(j===9?fkm(v):fnum(v))};
+  blocks.forEach(function(bk){
+    c.fillStyle='#BF4A0B';c.font='700 24px '+F;c.textAlign='left';c.fillText(eqTitle(bk.x,'  ›  '),M,y+16);
+    y+=44;
+    function row(vals,fill,color,bold,head){
+      c.fillStyle=fill;c.fillRect(M,y,W,RH);
+      c.strokeStyle='#D2DCE2';c.lineWidth=1;c.strokeRect(M+.5,y+.5,W-1,RH-1);
+      var x=M;
+      vals.forEach(function(v,j){
+        c.fillStyle=color;c.font=(bold?'700 ':'500 ')+(head?'15px ':'19px ')+F;
+        if(j===0){c.textAlign='left';c.fillText(String(v),x+12,y+RH/2)}
+        else{c.textAlign='center';c.fillText(String(v),x+cw[j]/2,y+RH/2)}
+        x+=cw[j];
+        if(j<vals.length-1){c.strokeStyle='#E3EAEE';c.beginPath();c.moveTo(x+.5,y);c.lineTo(x+.5,y+RH);c.stroke()}
+      });
+      y+=RH;
+    }
+    row(heads,'#0D2231','#FFFFFF',true,true);
+    bk.m.rows.forEach(function(r,ri){row(r.map(fmt),ri%2?'#F4F7F8':'#FFFFFF','#0D2231',false)});
+    row(bk.m.total.map(fmt),'#E1E8EC','#0D2231',true);
+    y+=30;
+  });
+  var blob=await new Promise(function(res){cv.toBlob(res,'image/png')});
+  if(!blob){msg.className='msg err';msg.textContent='L’image n’a pas pu être créée.';return}
+  var file=null;try{file=new File([blob],base+'.png',{type:'image/png'})}catch(e){file=null}
+  try{
+    if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:'Équipe – semaine '+isoWeek(a),text:'Feuille d’équipe, semaine '+isoWeek(a)});
+      msg.className='msg ok';msg.textContent='Image partagée.';return;
+    }
+  }catch(err){
+    if(err&&err.name==='AbortError'){msg.textContent='';return}
+  }
+  await dl.save({filename:base+'.png',data:blob});
+  msg.className='msg ok';msg.textContent='Image enregistrée. Joignez-la à votre mail.';
 }
 
 /* ---------- Navigation ---------- */
@@ -1343,6 +1402,7 @@ eqt.addEventListener('click',async function(e){
   else if(a==='refresh'){b.disabled=true;await flushNow();try{await bootstrap(DB0)}catch(err){}renderWho();renderEquipe()}
   else if(a==='pdf'){exportEquipe('pdf')}
   else if(a==='xlsx'){exportEquipe('xlsx')}
+  else if(a==='img'){exportEquipeImg()}
   else if(a==='del'){var pid=b.dataset.pid;armed(b,'Confirmer la suppression',function(){removePlongeur(pid)})}
 });
 eqt.addEventListener('change',function(e){if(e.target.id==='eqSite'){eq.site=e.target.value;renderEquipe()}});
