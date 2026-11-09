@@ -748,7 +748,7 @@ function clearDemo(){
 /* ---------- Chantiers ---------- */
 function renderSites(msg,cls){
   if(!ROLE.admin){$('#tab-sites').innerHTML='<div class="sec"><h2>Chantiers et dossiers</h2><p class="hint">Liste tenue par le responsable. Pour ajouter ou renommer un chantier, contactez-le.</p>'+S.folders.map(function(f){return '<div class="panel"><h3>'+esc(f.name)+'</h3><ul>'+S.sites.filter(function(s){return s.folderId===f.id}).map(function(s){return '<li>'+esc(s.name)+'</li>'}).join('')+'</ul></div>'}).join('')+'</div>';return}
-  var h='<div class="sec"><h2>Chantiers et dossiers</h2><p class="hint">Classez vos chantiers par dossier (client, zone, année…). Les chantiers apparaissent dans la saisie, groupés par dossier. Pour changer un nom, modifiez-le dans son champ puis quittez le champ : il s\u2019enregistre et se met à jour partout, y compris dans les exports.</p><div class="folders">';
+  var h='<div class="sec"><h2>Chantiers et dossiers</h2><div class="panel"><h3>Nouveau chantier</h3><div class="addrow" style="margin:0"><input type="text" id="newsite" placeholder="Nom du chantier" aria-label="Nom du nouveau chantier" autocomplete="off"><button class="btn primary" data-act="add-site-top">Ajouter</button></div></div><p class="hint">Le chantier est enregistré dans le dossier ci-dessous et apparaît tout de suite dans la saisie de chacun. Pour changer un nom, modifiez-le dans son champ puis quittez le champ : il s\u2019enregistre et se met à jour partout, y compris dans les exports.</p><div class="folders">';
   S.folders.forEach(function(f){
     var ss=S.sites.filter(function(s){return s.folderId===f.id});
     h+='<div class="panel folder" data-fid="'+f.id+'"><div class="fh"><input type="text" data-fname="'+f.id+'" value="'+esc(f.name)+'" aria-label="Nom du dossier" style="font-weight:600"><button class="btn" data-act="del-folder" data-fid="'+f.id+'" aria-label="Supprimer le dossier">Supprimer</button></div>';
@@ -758,9 +758,9 @@ function renderSites(msg,cls){
         '<button class="btn icon" data-act="del-site" data-sid="'+s.id+'" aria-label="Supprimer le chantier">✕</button></div>';
     });
     if(!ss.length)h+='<p class="hint">Dossier vide.</p>';
-    h+='<div class="addrow"><input type="text" id="newsite-'+f.id+'" placeholder="Nouveau chantier" aria-label="Nom du nouveau chantier"><button class="btn primary" data-act="add-site" data-fid="'+f.id+'">Ajouter</button></div></div>';
+    h+='</div>';
   });
-  h+='</div><div class="panel"><div class="addrow" style="margin:0"><input type="text" id="newfolder" placeholder="Nouveau dossier (ex. Port de Cannes 2026)" aria-label="Nom du nouveau dossier"><button class="btn primary" data-act="add-folder">Créer le dossier</button></div></div>'+
+  h+='</div>'+
     '<div class="msg'+(cls?' '+cls:'')+'" id="sitesMsg" aria-live="polite">'+esc(msg||'')+'</div></div>';
   $('#tab-sites').innerHTML=h;
 }
@@ -1092,14 +1092,13 @@ function eqTitle(x,sep){return x.f.name.trim().toLowerCase()===x.s.name.trim().t
 function sortedPids(pls){return Object.keys(pls).sort(function(a,b){return pls[a].name.localeCompare(pls[b].name)})}
 function renderEquipe(){
   var box=$('#tab-equipe');
-  if(!ROLE.admin){box.innerHTML='<div class="empty-note">Cette page est réservée au responsable.</div>';return}
   var a=eq.week,b=shiftIso(a,6),agg=weekAgg(a,b),list=eqList(agg),days7=[],i;
   for(i=0;i<7;i++)days7.push(shiftIso(a,i));
   var opts='<option value="all"'+(eq.site==='all'?' selected':'')+'>Tous les chantiers</option>'+S.folders.map(function(f){
     var ss=S.sites.filter(function(s){return s.folderId===f.id});if(!ss.length)return '';
     return '<optgroup label="'+esc(f.name)+'">'+ss.map(function(s){return '<option value="'+s.id+'"'+(s.id===eq.site?' selected':'')+'>'+esc(s.name)+'</option>'}).join('')+'</optgroup>';
   }).join('');
-  var h='<div class="sec"><div class="mnav"><button class="btn icon" data-eq="prev" aria-label="Semaine précédente">‹</button><h2>Équipe · semaine '+isoWeek(a)+'</h2><button class="btn icon" data-eq="next" aria-label="Semaine suivante">›</button></div>'+
+  var h='<div class="sec"><div class="mnav"><button class="btn icon" data-eq="prev" aria-label="Semaine précédente">‹</button><h2>'+(ROLE.admin?'Équipe':'Ma feuille')+' · semaine '+isoWeek(a)+'</h2><button class="btn icon" data-eq="next" aria-label="Semaine suivante">›</button></div>'+
     '<p class="hint wkhead">du '+longDate(a)+' au '+longDate(b)+'</p>'+
     '<div class="panel" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end"><label class="f" style="flex:1;min-width:220px"><span class="l">Chantier</span><select id="eqSite">'+opts+'</select></label>'+
     '<button class="btn primary" data-eq="pdf"'+(dl?'':' disabled')+'>Feuille en PDF</button><button class="btn primary" data-eq="xlsx"'+(dl?'':' disabled')+'>Feuille en Excel</button><button class="btn primary" data-eq="img"'+(dl?'':' disabled')+'>Image à envoyer par mail</button><button class="btn" data-eq="refresh">Actualiser</button></div>'+
@@ -1122,8 +1121,8 @@ function renderEquipe(){
     rows+='<tr class="tot"><td>Total chantier</td>'+dayTot.map(function(n){return '<td>'+(n?fnum(n):'')+'</td>'}).join('')+'<td>'+fnum(t.h)+'</td><td>'+fkm(t.km)+'</td><td>'+fnum(t.rh)+'</td><td>'+t.igd+'</td><td>'+t.pigd+'</td></tr>';
     h+='<div class="tw"><table class="eq"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
   });
-  if(!list.length)h+='<div class="empty-note">Aucune saisie cette semaine. Choisissez un plongeur dans l’en-tête, puis remplissez sa semaine : elle apparaîtra ici, classée par dossier et par chantier.</div>';
-  h+='<div class="sec"><h3>Plongeurs</h3><div class="tw"><table class="eq"><tbody>'+ROSTER.map(function(p){return '<tr><td>'+esc(p.name||'(sans nom)')+'</td><td><button class="link danger" data-eq="del" data-pid="'+esc(p.id)+'">Retirer</button></td></tr>'}).join('')+'</tbody></table></div><p class="hint">Retirer un plongeur supprime aussi toutes ses saisies.</p></div></div>';
+  if(!list.length)h+='<div class="empty-note">'+(ROLE.admin?'Aucune saisie cette semaine. Choisissez un plongeur dans l’en-tête, puis remplissez sa semaine : elle apparaîtra ici, classée par dossier et par chantier.':'Aucune saisie cette semaine. Vos heures apparaîtront ici dès que vous les aurez saisies.')+'</div>';
+  if(ROLE.admin)h+='<div class="sec"><h3>Plongeurs</h3><div class="tw"><table class="eq"><tbody>'+ROSTER.map(function(p){return '<tr><td>'+esc(p.name||'(sans nom)')+'</td><td><button class="link danger" data-eq="del" data-pid="'+esc(p.id)+'">Retirer</button></td></tr>'}).join('')+'</tbody></table></div><p class="hint">Retirer un plongeur supprime aussi toutes ses saisies.</p></div></div>';
   box.innerHTML=h;
 }
 function eqMatrix(x,agg,days7){
@@ -1351,6 +1350,7 @@ st.addEventListener('change',function(e){
 st.addEventListener('click',function(e){
   var b=e.target.closest('[data-act]');if(!b)return;var a=b.dataset.act;
   if(a==='add-folder'){var n=$('#newfolder').value.trim();if(!n){renderSites('Saisissez un nom de dossier.','err');return}S.folders.push({id:'f'+rid(),name:n});markDirty();renderSites('Dossier créé.','ok')}
+  else if(a==='add-site-top'){var it=$('#newsite');var nn=(it.value||'').trim();if(!nn){renderSites('Saisissez un nom de chantier.','err');return}if(!S.folders.length)S.folders.push({id:'f'+rid(),name:'Chantiers'});S.sites.push({id:'s'+rid(),folderId:S.folders[0].id,name:nn});markDirty();renderSites('Chantier « '+nn+' » ajouté.','ok')}
   else if(a==='add-site'){var inp=$('#newsite-'+b.dataset.fid);var nm=inp.value.trim();if(!nm){renderSites('Saisissez un nom de chantier.','err');return}S.sites.push({id:'s'+rid(),folderId:b.dataset.fid,name:nm});markDirty();renderSites('Chantier ajouté.','ok')}
   else if(a==='del-site'){var n2=siteUses(b.dataset.sid);if(n2){renderSites('Ce chantier est utilisé dans '+n2+' ligne'+(n2>1?'s':'')+' de saisie. Retirez-les avant de le supprimer.','err');return}
     armed(b,'Sûr ?',function(){S.sites=S.sites.filter(function(s){return s.id!==b.dataset.sid});markDirty();renderSites('Chantier supprimé.','ok')})}
@@ -1425,7 +1425,7 @@ async function start(){
   S=defaults();showTab('saisie');
   await loadStore();
   document.body.classList.remove('loading');
-  $('[data-tab=equipe]').hidden=!ROLE.admin;
+  $('[data-tab=equipe]').hidden=false;if(!ROLE.admin)$('[data-tab=equipe]').textContent='Ma feuille';
   $('#pinBtn').hidden=(AUTH&&AUTH.uid==='chef');
   renderWho();
   setSave(Store&&Store.kind==='cloud'?'Enregistré':'Sur cet appareil');
