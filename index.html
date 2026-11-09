@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0A1822">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Relever d'heure">
 <title>Relever d'heure</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
@@ -186,6 +191,9 @@ table.eq td:first-child,table.eq th:first-child{text-align:left}
 .pinbox{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
 .pinbox label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);flex:1;min-width:140px}
 .pinbox[hidden]{display:none}
+.logo{width:52px;height:52px;flex:none;object-fit:contain}
+.llogo{align-self:center;width:140px;height:140px;object-fit:contain;margin:-6px 0 -2px}
+.lcard h2{text-align:center}
 .lmsg{min-height:1.3em;margin:0;color:#B3261E;font-size:13px}
 
 @media (max-width:640px){
@@ -225,7 +233,7 @@ table.eq td:first-child,table.eq th:first-child{text-align:left}
 <div id="login" class="login" hidden></div>
 <div class="wrap">
   <header class="top">
-    <div class="brand"><span class="mark"></span><div><h1>Relever d'heure</h1><small>Plongeurs · heures, kilomètres, IGD</small></div></div>
+    <div class="brand"><img class="logo" src="logo-160.png" alt="" width="52" height="52"><div><h1>Relever d'heure</h1><small>Plongeurs · heures, kilomètres, IGD</small></div></div>
     <div class="tools">
       <div class="who" id="whoBox"></div>
       <div class="stepper"><button class="btn icon" id="yPrev" aria-label="Année précédente">‹</button><strong id="yLabel" class="num"></strong><button class="btn icon" id="yNext" aria-label="Année suivante">›</button></div>
@@ -518,7 +526,7 @@ function loginScreen(msg){
       if(mode==='reset')f='<p class="lhint">Entrez votre nom, le code responsable et un nouveau PIN.</p><label>Votre nom<select id="lName">'+names.map(function(n){return '<option value="'+esc(n.id)+'">'+esc(n.name||'(sans nom)')+'</option>'}).join('')+'</select></label><label>Code responsable<input id="lChef" type="password" autocomplete="off"></label><label>Nouveau PIN (4 chiffres ou plus)<input id="lPin" type="password" inputmode="numeric" autocomplete="new-password"></label>';
       if(mode==='new')f='<label>Nom Prénom<input id="lNew" type="text" autocomplete="name"></label><label>Code équipe (donné par le responsable)<input id="lTeam" type="text" autocapitalize="characters" autocomplete="off"></label><label>Choisissez un code PIN (4 chiffres ou plus)<input id="lPin" type="password" inputmode="numeric" autocomplete="new-password"></label>';
       if(mode==='chef')f='<label>Code responsable<input id="lPin" type="password" autocomplete="current-password"></label>';
-      box.innerHTML='<form class="lcard" id="lForm"><h2>Relever d’heure</h2>'+tabs+f+'<p class="lmsg" id="lMsg">'+esc(note)+'</p><button class="btn primary" type="submit">'+(mode==='new'?'Créer mon accès':mode==='reset'?'Changer mon PIN':'Entrer')+'</button></form>';
+      box.innerHTML='<form class="lcard" id="lForm"><img class="llogo" src="logo-320.png" alt="" width="140" height="140"><h2>Relever d’heure</h2>'+tabs+f+'<p class="lmsg" id="lMsg">'+esc(note)+'</p><button class="btn primary" type="submit">'+(mode==='new'?'Créer mon accès':mode==='reset'?'Changer mon PIN':'Entrer')+'</button></form>';
       box.hidden=false;
     }
     box.onclick=function(e){var b=e.target.closest('[data-m]');if(b){mode=b.dataset.m;note='';draw()}};
