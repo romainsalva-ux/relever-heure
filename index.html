@@ -1,0 +1,1330 @@
+<title>Relever d'heure</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout : en-tête compact, onglets, puis une vue à la fois. Saisie = calendrier du mois + fiche de la journée (deux colonnes en large, empilées sur téléphone). */
+:root{
+  --bg:#EDF1F3; --surface:#FFFFFF; --surface2:#F4F7F8; --ink:#0D2231; --muted:#566B79; --line:#D2DCE2;
+  --accent:#BF4A0B; --accent-ink:#FFFFFF; --accent-soft:#FBE8DB;
+  --teal:#0A6F7D; --teal-soft:#DAEFF1; --ferie:#6A4BB5; --ferie-soft:#ECE6F8; --meteo:#1D6FB8; --meteo-soft:#DDEBF8; --bad:#B3261E; --good:#1E7B45;
+  --f-display:'Barlow Condensed','Arial Narrow',Arial,sans-serif;
+  --f-body:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A1822; --surface:#102331; --surface2:#0D1E2A; --ink:#E5EEF2; --muted:#8CA3B2; --line:#233B4B;
+    --accent:#FF8F4A; --accent-ink:#1A0B02; --accent-soft:#3A2415;
+    --teal:#52C7D6; --teal-soft:#10353C; --ferie:#B9A6FF; --ferie-soft:#2A2347; --meteo:#7DB8F0; --meteo-soft:#162E47; --bad:#FF8A80; --good:#6FD39A; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A1822; --surface:#102331; --surface2:#0D1E2A; --ink:#E5EEF2; --muted:#8CA3B2; --line:#233B4B;
+  --accent:#FF8F4A; --accent-ink:#1A0B02; --accent-soft:#3A2415;
+  --teal:#52C7D6; --teal-soft:#10353C; --ferie:#B9A6FF; --ferie-soft:#2A2347; --meteo:#7DB8F0; --meteo-soft:#162E47; --bad:#FF8A80; --good:#6FD39A; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;
+  padding-block:16px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;margin:0;letter-spacing:.01em;text-wrap:balance}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+/* En-tête */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.mark{width:12px;height:30px;background:var(--accent);border-radius:2px;flex:none}
+.brand h1{font-size:30px;line-height:1}
+.brand small{display:block;color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.who{display:flex;align-items:center;gap:8px}
+.who label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.who input{width:min(220px,46vw)}
+.stepper{display:flex;align-items:center;gap:4px}
+.stepper strong{font-family:var(--f-display);font-size:22px;min-width:3.2ch;text-align:center}
+.savestate{font-size:12px;color:var(--muted);min-width:7ch}
+
+input,select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-height:40px;width:100%;min-width:0}
+input[type=number]{font-variant-numeric:tabular-nums}
+.btn{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 14px;min-height:40px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.icon{padding:8px 12px;min-width:40px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.link{background:none;border:0;padding:6px 0;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:13px}
+.link.danger{color:var(--bad)}
+
+/* Onglets */
+.tabs{display:flex;gap:2px;border-bottom:2px solid var(--line);overflow-x:auto}
+.tabs button{background:none;border:0;padding:10px 16px;font-family:var(--f-display);font-weight:600;font-size:19px;letter-spacing:.02em;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+body.loading main{opacity:.5;pointer-events:none}
+
+/* Totaux */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.stat{background:var(--surface);padding:10px 12px;min-width:0}
+.stat span{display:block;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.stat b{font-family:var(--f-display);font-size:28px;line-height:1.1;font-weight:700}
+.stat b i{font-style:normal;font-size:15px;color:var(--muted);font-weight:500;margin-left:2px}
+.stat.igd b{color:var(--teal)}
+
+/* Saisie */
+.saisie{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:820px){.saisie{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}
+.mnav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.mnav h2{font-size:24px}
+.cal{display:grid;grid-template-columns:2.2rem repeat(7,minmax(0,1fr));gap:4px}
+.wk{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+.dh{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:center;padding-bottom:2px}
+.dc{position:relative;aspect-ratio:1/1.05;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:4px 5px;cursor:pointer;text-align:left;display:flex;flex-direction:column;justify-content:space-between;min-width:0}
+.dc.empty{background:none;border:0;cursor:default}
+.dc.we{background:var(--bg)}
+.dc.on{background:var(--accent-soft);border-color:var(--accent)}
+.dc.today .n{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
+.dc.sel{outline:2px solid var(--ink);outline-offset:1px}
+.dc .n{font-size:13px;font-weight:600}
+.dc .hv{font-family:var(--f-display);font-size:21px;font-weight:700;line-height:1;align-self:flex-end}
+.dc .igs{position:absolute;top:3px;right:3px;display:flex;gap:2px}
+.dc .ig.p{background:transparent;color:var(--teal);outline:1px solid var(--teal)}
+.dc .ig{font-size:10px;font-weight:600;background:var(--teal);color:var(--surface);border-radius:3px;padding:0 4px;line-height:15px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:5px}
+
+.dayhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.dayhead h2{font-size:24px;text-transform:capitalize}
+.line{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;margin-bottom:10px;background:var(--surface2)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:460px){.grid2{grid-template-columns:minmax(0,1fr)}.grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f > span.l{font-size:12px;color:var(--muted);letter-spacing:.03em}
+.tag{display:inline-flex;gap:6px;align-items:center;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.tag.manual{color:var(--accent)}
+.tag button{background:none;border:0;padding:0;text-transform:none;letter-spacing:0;font-weight:500;font-size:12px;text-decoration:underline;color:var(--muted);cursor:pointer}
+.igdbox{border:1px solid var(--teal);background:var(--teal-soft);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.igdbox .row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.igdbox h3{font-size:19px;color:var(--teal)}
+.igdbox input{width:84px;text-align:center;font-weight:600}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.daytotal{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);font-weight:600}
+.actions{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-top:8px}
+details.rules{margin-top:12px;font-size:13.5px;color:var(--muted)}
+details.rules summary{cursor:pointer;font-weight:600;color:var(--ink)}
+details.rules p{margin:6px 0 0}
+
+/* Tableaux */
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--surface2)}
+tr.zero td{color:var(--muted)}
+tr.tot td{font-weight:700;background:var(--surface2);border-bottom:0}
+tr.grp td{text-align:left;font-family:var(--f-display);font-size:17px;font-weight:700;background:var(--surface2);color:var(--teal)}
+.sec{display:flex;flex-direction:column;gap:12px}
+.sec h2{font-size:24px}
+.badge{display:inline-block;font-size:11px;font-weight:600;background:var(--teal);color:var(--surface);border-radius:3px;padding:1px 6px;margin:1px;white-space:nowrap}
+.badge.p{background:transparent;color:var(--teal);outline:1px solid var(--teal)}
+table.sem td,table.sem th{vertical-align:top}
+td.tl,th.tl{text-align:left}
+td.rest{text-align:left;color:var(--muted)}
+.sub{color:var(--muted);font-size:12.5px}
+.wkhead{text-align:center}
+.daynav{display:flex;gap:6px;align-items:center;margin-bottom:12px}
+.wkstrip{flex:1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;min-width:0}
+.wd{display:flex;flex-direction:column;align-items:center;padding:4px 0;border:1px solid var(--line);border-radius:6px;background:var(--surface2);cursor:pointer;min-width:0;line-height:1.15}
+.wd span{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.wd b{font-family:var(--f-display);font-size:18px}
+.wd i{font-style:normal;font-size:11px;color:var(--muted);min-height:1.2em}
+.wd.on{background:var(--accent-soft);border-color:var(--accent)}
+.wd.ferie{background:var(--ferie-soft);border-color:var(--ferie)}
+.wd.intemp{background:var(--meteo-soft);border-color:var(--meteo)}
+.wd.sel{outline:2px solid var(--ink);outline-offset:1px}
+.dc.ferie{background:var(--ferie-soft);border-color:var(--ferie)}
+.dc.meteo{background:var(--meteo-soft);border-color:var(--meteo)}
+.dc .stl{font-size:11px;font-weight:600;line-height:1.1;align-self:flex-end;text-align:right}
+.dc.ferie .stl{color:var(--ferie)}
+.dc.meteo .stl{color:var(--meteo)}
+table.eq td,table.eq th{text-align:center}
+table.eq td:first-child,table.eq th:first-child{text-align:left}
+.who{flex-wrap:wrap}
+.who select{width:min(220px,46vw)}
+
+/* Chantiers */
+.folders{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px}
+.folder h3{font-size:21px}
+.folder .fh{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.site{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,150px) auto;gap:8px;align-items:center;margin-bottom:8px}
+@media (max-width:460px){.site{grid-template-columns:minmax(0,1fr) auto}.site select{grid-column:1/-1;order:3}}
+.addrow{display:flex;gap:8px;margin-top:6px}
+.msg{min-height:1.4em;font-size:13.5px;color:var(--muted)}
+.msg.err{color:var(--bad)}.msg.ok{color:var(--good)}
+.exp{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.exp .btns{display:flex;flex-wrap:wrap;gap:10px}
+.empty-note{padding:16px;border:1px dashed var(--line);border-radius:8px;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.btn,.dc{transition:border-color .12s,background .12s}}
+
+.login{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+.login[hidden]{display:none}
+.lcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:22px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:12px}
+.lcard h2{margin:0 0 4px;font-size:22px}
+.lcard label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.lcard label input,.lcard label select{color:var(--ink);font-size:16px}
+.ltabs{display:flex;gap:4px}
+.ltabs button{flex:1;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:8px 4px;min-height:40px;cursor:pointer;font-size:13px;color:var(--ink)}
+.ltabs button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.lmsg{min-height:1.3em;margin:0;color:#B3261E;font-size:13px}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<div id="login" class="login" hidden></div>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="mark"></span><div><h1>Relever d'heure</h1><small>Plongeurs · heures, kilomètres, IGD</small></div></div>
+    <div class="tools">
+      <div class="who" id="whoBox"></div>
+      <div class="stepper"><button class="btn icon" id="yPrev" aria-label="Année précédente">‹</button><strong id="yLabel" class="num"></strong><button class="btn icon" id="yNext" aria-label="Année suivante">›</button></div>
+      <span class="savestate" id="saveState" aria-live="polite"></span>
+      <button class="btn" id="logout">Quitter</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="saisie" aria-selected="true">Saisie</button>
+    <button role="tab" data-tab="semaine" aria-selected="false">Semaine</button>
+    <button role="tab" data-tab="recap" aria-selected="false">Récapitulatif</button>
+    <button role="tab" data-tab="equipe" aria-selected="false" hidden>Équipe</button>
+    <button role="tab" data-tab="sites" aria-selected="false">Chantiers</button>
+    <button role="tab" data-tab="export" aria-selected="false">Export</button>
+  </nav>
+
+  <main>
+    <section id="tab-saisie">
+      <div class="stats" id="monthStats" style="margin-bottom:14px"></div>
+      <div class="saisie">
+        <div class="panel">
+          <div class="mnav">
+            <button class="btn icon" id="mPrev" aria-label="Mois précédent">‹</button>
+            <h2 id="mLabel"></h2>
+            <button class="btn icon" id="mNext" aria-label="Mois suivant">›</button>
+          </div>
+          <div class="cal" id="cal"></div>
+          <div class="legend">
+            <span><i style="background:var(--accent-soft);border:1px solid var(--accent)"></i>Jour travaillé (heures)</span>
+            <span><i style="background:var(--teal)"></i>IGD</span>
+            <span><i style="border:1px solid var(--teal)"></i>Petit IGD (dernier jour)</span>
+            <span><i style="background:var(--ferie-soft);border:1px solid var(--ferie)"></i>Férié</span>
+            <span><i style="background:var(--meteo-soft);border:1px solid var(--meteo)"></i>Intempérie</span>
+          </div>
+          <div class="actions"><button class="btn primary" id="goWeek">Exporter cette semaine (PDF / Excel)</button></div>
+          <details class="rules">
+            <summary>Règles de calcul</summary>
+            <p><b>Heures de route :</b> 1 h par tranche de 100 km commencée. 1 à 100 km = 1 h, 101 à 200 km = 2 h, 201 à 300 km = 3 h, et ainsi de suite.</p>
+            <p><b>IGD :</b> une indemnité par jour travaillé dès le premier jour d'une série de jours consécutifs, sauf le dernier. Le dernier jour de la série donne un petit IGD. 3 jours de suite = 2 IGD + 1 petit IGD, 5 jours de suite = 4 IGD + 1 petit IGD. Un jour travaillé isolé ne donne rien.</p>
+            <p><b>Kilomètres :</b> indiquez le départ et l'arrivée (ville ou adresse) pour garder la trace du trajet. L'application ne calcule pas la distance : le lien « Voir l'itinéraire » ouvre Google Maps pour la trouver, puis saisissez les kilomètres.</p>
+            <p><b>Férié / Intempérie :</b> choisissez le type de journée en haut de la fiche. La journée est comptée comme non travaillée (0 h), sans trajet, et ne donne pas d'IGD. Elle compte dans la série de jours consécutifs : elle ne supprime pas les IGD du jour d'après ni ceux de la veille.</p>
+            <p>Les heures de route et les IGD se remplissent seuls. Modifiez la valeur à la main si besoin, le lien « auto » la remet au calcul.</p>
+          </details>
+        </div>
+        <div class="panel" id="editor"></div>
+      </div>
+    </section>
+
+    <section id="tab-semaine" hidden></section>
+    <section id="tab-recap" hidden></section>
+    <section id="tab-equipe" hidden></section>
+    <section id="tab-sites" hidden></section>
+    <section id="tab-export" hidden></section>
+  </main>
+</div>
+
+<script>
+(function(){
+'use strict';
+var $=function(s,r){return (r||document).querySelector(s)};
+var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+var MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+var JOURS=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+var JC=['lun.','mar.','mer.','jeu.','ven.','sam.','dim.'];
+var LS='carnet-heures-v1';
+var pad=function(n){return String(n).padStart(2,'0')};
+var iso=function(y,m,d){return y+'-'+pad(m)+'-'+pad(d)};
+var rid=function(){return Math.random().toString(36).slice(2,9)};
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+function parts(s){return s.split('-').map(Number)}
+function prevIso(s){var p=parts(s),t=new Date(Date.UTC(p[0],p[1]-1,p[2]-1));return iso(t.getUTCFullYear(),t.getUTCMonth()+1,t.getUTCDate())}
+function isoWeek(s){var p=parts(s),d=new Date(Date.UTC(p[0],p[1]-1,p[2]));d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7)+3);var j=new Date(Date.UTC(d.getUTCFullYear(),0,4));return 1+Math.round(((d-j)/86400000-3+((j.getUTCDay()+6)%7))/7)}
+function wkCell(k){return '<div class="wk" title="Semaine '+isoWeek(k)+'">'+isoWeek(k)+'</div>'}
+function dow(s){var p=parts(s);return (new Date(Date.UTC(p[0],p[1]-1,p[2])).getUTCDay()+6)%7}
+function fnum(n,dp){if(n==null||n==='')return '';dp=dp==null?2:dp;var s=(Math.round(Number(n)*Math.pow(10,dp))/Math.pow(10,dp)).toString();return s.replace('.',',')}
+function fkm(n){return String(Math.round(Number(n)||0)).replace(/\B(?=(\d{3})+(?!\d))/g,' ')}
+function fdate(s){var p=parts(s);return pad(p[2])+'/'+pad(p[1])+'/'+p[0]}
+function longDate(s){var p=parts(s);return JOURS[dow(s)]+' '+p[2]+' '+MOIS[p[1]-1]+' '+p[0]}
+
+var now=new Date();
+var TODAY=iso(now.getFullYear(),now.getMonth()+1,now.getDate());
+var S={v:1,agent:'',folders:[],sites:[],days:{}};
+var view={tab:'saisie',y:now.getFullYear(),m:now.getMonth()+1,sel:TODAY};
+var dl=null;
+
+function defaults(){
+  var f={id:'f'+rid(),name:'Chantiers en cours'};
+  return {v:1,agent:'',folders:[f],sites:[{id:'s'+rid(),folderId:f.id,name:'Chantier à renommer'}],days:{}};
+}
+function normalize(o){
+  var d=defaults();
+  if(!o||typeof o!=='object')return d;
+  var r={v:1,agent:String(o.agent||''),folders:Array.isArray(o.folders)?o.folders:[],sites:Array.isArray(o.sites)?o.sites:[],days:(o.days&&typeof o.days==='object')?o.days:{}};
+  if(!r.folders.length)r.folders=d.folders;
+  if(!r.sites.length&&!Object.keys(r.days).length)r.sites=[{id:'s'+rid(),folderId:r.folders[0].id,name:'Chantier à renommer'}];
+  Object.keys(r.days).forEach(function(k){var e=r.days[k];if(!e||!Array.isArray(e.lines)){delete r.days[k]}else{if(e.igd===undefined)e.igd=null;if(e.pigd===undefined)e.pigd=null}});
+  return r;
+}
+
+/* ---------- Calculs ---------- */
+function dayHours(k){var e=S.days[k];return e?e.lines.reduce(function(a,l){return a+(+l.h||0)},0):0}
+function worked(k){return dayHours(k)>0}
+function inSeries(k){return worked(k)||!!statusOf(k)}
+function statusOf(k){var e=S.days[k];return e&&e.status?e.status:''}
+function statusLabel(s){return s==='ferie'?'Férié':s==='intemp'?'Intempérie':''}
+function nextIso(s){var p=parts(s),t=new Date(Date.UTC(p[0],p[1]-1,p[2]+1));return iso(t.getUTCFullYear(),t.getUTCMonth()+1,t.getUTCDate())}
+function igdAuto(k){return worked(k)&&inSeries(nextIso(k))?1:0}
+function pigdAuto(k){return worked(k)&&inSeries(prevIso(k))&&!inSeries(nextIso(k))?1:0}
+function igdOf(k){var e=S.days[k];if(!e)return 0;return e.igd!=null?e.igd:igdAuto(k)}
+function pigdOf(k){var e=S.days[k];if(!e)return 0;return e.pigd!=null?e.pigd:pigdAuto(k)}
+function roadAuto(km){km=+km||0;return km>0?Math.ceil(km/100):0}
+function roadOf(l){return l.rh!=null?l.rh:roadAuto(l.km)}
+function tot(pred){
+  var t={h:0,km:0,rh:0,igd:0,pigd:0,days:0,ferie:0,intemp:0};
+  Object.keys(S.days).forEach(function(k){
+    if(!pred(k))return;
+    S.days[k].lines.forEach(function(l){t.h+=+l.h||0;t.km+=+l.km||0;t.rh+=roadOf(l)});
+    t.igd+=igdOf(k);t.pigd+=pigdOf(k);if(worked(k))t.days++;var stt=S.days[k].status;if(stt==='ferie')t.ferie++;else if(stt==='intemp')t.intemp++;
+  });
+  return t;
+}
+function siteById(id){return S.sites.find(function(s){return s.id===id})}
+function folderById(id){return S.folders.find(function(f){return f.id===id})}
+function siteName(id){var s=siteById(id);return s?s.name:'Chantier supprimé'}
+function folderName(id){var s=siteById(id);var f=s&&folderById(s.folderId);return f?f.name:''}
+function lastSiteId(){
+  var ks=Object.keys(S.days).sort();
+  for(var i=ks.length-1;i>=0;i--){var ls=S.days[ks[i]].lines;for(var j=ls.length-1;j>=0;j--){if(siteById(ls[j].siteId))return ls[j].siteId}}
+  return S.sites[0]?S.sites[0].id:'';
+}
+function newLine(){return {id:rid(),siteId:lastSiteId(),type:'n',h:0,km:0,rh:null}}
+function ensureDay(k){if(!S.days[k])S.days[k]={lines:[newLine()],igd:null,pigd:null}}
+function isBlank(l){return !(+l.h)&&!(+l.km)&&l.rh==null}
+function prune(keep){
+  Object.keys(S.days).forEach(function(k){
+    if(k===keep)return;var e=S.days[k];
+    if(e.igd==null&&e.pigd==null&&!e.status&&e.lines.every(isBlank))delete S.days[k];
+  });
+}
+
+/* ---------- Enregistrement ---------- */
+var LS2='carnet-heures-v2';
+var ROLE={admin:true,uid:'moi'},ROSTER=[],CUR=null,ALL={},Store=null,DB0=null;
+var saved={struct:'',years:{},name:{}};
+var dirty=false,saving=false,timer=null;
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
+function withTimeout(p,ms){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'))},ms)})])}
+function setSave(t){$('#saveState').textContent=t}
+function nameOf(pid){var p=ROSTER.find(function(x){return x.id===pid});return p?p.name:''}
+function sortRoster(){ROSTER.sort(function(a,b){return (a.name||'zzz').localeCompare(b.name||'zzz')})}
+function yearGroups(days){var g={};Object.keys(days).forEach(function(k){var y=k.slice(0,4);(g[y]||(g[y]={}))[k]=days[k]});return g}
+function snapYears(pid){
+  Object.keys(saved.years).forEach(function(k){if(k.indexOf(pid+'|')===0)delete saved.years[k]});
+  var g=yearGroups(ALL[pid]||{});
+  Object.keys(g).forEach(function(y){saved.years[pid+'|'+y]=JSON.stringify(g[y])});
+}
+function withDays(pid,fn){var keep=S.days;S.days=ALL[pid]||{};try{return fn()}finally{S.days=keep}}
+
+var SB_URL='https://hfyqjhfchshdnmpkzwzn.supabase.co',SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmeXFqaGZjaHNoZG5tcGt6d3puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMTcwNjMsImV4cCI6MjA5NjY5MzA2M30.i8atFzfy-z8CkQ7weWkIdWjl_p7Za1zOVfaWsNFWgo8';
+var AUTH=null,LOADED=null;
+async function rpc(fn,args){
+  var r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json'},body:JSON.stringify(args||{})});
+  var t=await r.text();
+  if(!r.ok){var e=new Error(t);e.status=r.status;throw e}
+  return t?JSON.parse(t):null;
+}
+function cloudStore(){
+  function a(o){return Object.assign({p_uid:AUTH.uid,p_pin:AUTH.pin},o||{})}
+  return {
+    kind:'cloud',
+    loadStructure:async function(){LOADED=await rpc('rh_load',a());return LOADED.structure?JSON.parse(LOADED.structure):null},
+    saveStructure:async function(o){await rpc('rh_save_structure',a({p_json:JSON.stringify(o)}))},
+    loadRoster:async function(){return (LOADED&&LOADED.roster||[]).map(function(d){return {id:d.id,name:String(d.name||'')}})},
+    saveRoster:async function(p){await rpc('rh_save_roster',a({p_pid:p.id,p_name:p.name}))},
+    loadDays:async function(pid){
+      var rows=await rpc('rh_load_days',a({p_pid:pid})),m={};
+      rows.forEach(function(r){var o=JSON.parse(r.json);Object.keys(o).forEach(function(k){m[k]=o[k]})});
+      return m;
+    },
+    saveYear:async function(pid,y,obj){await rpc('rh_save_year',a({p_pid:pid,p_year:String(y),p_json:JSON.stringify(obj)}))},
+    delPlongeur:async function(pid){await rpc('rh_del_plongeur',a({p_pid:pid}))},
+    setPin:async function(pid,pin){await rpc('rh_set_pin',a({p_pid:pid,p_new:pin}))}
+  };
+}
+function localStore(){
+  var L=null;
+  try{L=JSON.parse(localStorage.getItem(LS2))}catch(e){L=null}
+  if(!L){
+    var old=null;try{old=JSON.parse(localStorage.getItem(LS))}catch(e){old=null}
+    var o=normalize(old);
+    L={structure:{folders:o.folders,sites:o.sites},roster:[{id:'moi',name:o.agent||''}],days:{moi:o.days}};
+  }
+  var mem=L;
+  function persist(){try{localStorage.setItem(LS2,JSON.stringify(mem))}catch(e){}}
+  return {
+    kind:'local',
+    loadStructure:async function(){return mem.structure},
+    saveStructure:async function(o){mem.structure=o;persist()},
+    loadRoster:async function(){return mem.roster.map(function(p){return {id:p.id,name:p.name}})},
+    saveRoster:async function(p){var i=mem.roster.findIndex(function(x){return x.id===p.id});if(i<0)mem.roster.push({id:p.id,name:p.name});else mem.roster[i].name=p.name;persist()},
+    loadDays:async function(pid){return JSON.parse(JSON.stringify(mem.days[pid]||{}))},
+    saveYear:async function(pid,y,obj){var d=mem.days[pid]||(mem.days[pid]={});Object.keys(d).forEach(function(k){if(k.slice(0,4)===y)delete d[k]});Object.keys(obj).forEach(function(k){d[k]=obj[k]});persist()},
+    delPlongeur:async function(pid){mem.roster=mem.roster.filter(function(x){return x.id!==pid});delete mem.days[pid];persist()}
+  };
+}
+
+function markDirty(){dirty=true;setSave('Modifié…');clearTimeout(timer);timer=setTimeout(flush,700)}
+async function flushNow(){clearTimeout(timer);while(saving){await sleep(50)}await flush()}
+async function flush(){
+  if(saving||!dirty)return;
+  saving=true;dirty=false;setSave('Enregistrement…');
+  var ok=false;
+  try{
+    prune(view.tab==='saisie'?view.sel:null);
+    var pid=CUR;
+    if(ROLE.admin){
+      var sj=JSON.stringify({folders:S.folders,sites:S.sites});
+      if(sj!==saved.struct){await Store.saveStructure(JSON.parse(sj));saved.struct=sj}
+    }
+    if(pid){
+      var g=yearGroups(S.days),yrs=Object.keys(g);
+      Object.keys(saved.years).forEach(function(k){if(k.indexOf(pid+'|')===0){var y0=k.split('|')[1];if(yrs.indexOf(y0)<0)yrs.push(y0)}});
+      for(var i=0;i<yrs.length;i++){
+        var y=yrs[i],obj=g[y]||{},js=JSON.stringify(obj),key=pid+'|'+y;
+        if(saved.years[key]===js||(js==='{}'&&saved.years[key]===undefined))continue;
+        await Store.saveYear(pid,y,obj);
+        if(js==='{}')delete saved.years[key];else saved.years[key]=js;
+      }
+      var nm=nameOf(pid);
+      if(saved.name[pid]!==nm){await Store.saveRoster({id:pid,name:nm});saved.name[pid]=nm}
+    }
+    ok=true;setSave(Store.kind==='cloud'?'Enregistré':'Enregistré sur cet appareil');
+  }catch(e){dirty=true;setSave('Échec de l’enregistrement')}
+  saving=false;
+  if(ok&&dirty)flush();
+}
+
+var pendingMigrate=false;
+async function bootstrap(db){
+  ROSTER=[];ALL={};saved={struct:'',years:{},name:{}};pendingMigrate=false;
+  var st=await withTimeout(Store.loadStructure(),9000),legacy=null;
+  var roster=await withTimeout(Store.loadRoster(),9000);
+  if(!st){
+    if(ROLE.admin){
+      if(db){try{var ls=await db.doc('data/users/'+ROLE.uid+'/state').get();if(ls.exists)legacy=normalize(JSON.parse(ls.data().json))}catch(e){legacy=null}}
+      var d0=legacy||defaults();
+      st={folders:d0.folders,sites:d0.sites};
+      await Store.saveStructure(st);
+    }else{st={folders:[],sites:[]}}
+  }
+  S.folders=(st.folders&&st.folders.length)?st.folders:(ROLE.admin?defaults().folders:[]);
+  S.sites=st.sites||[];
+  saved.struct=JSON.stringify({folders:S.folders,sites:S.sites});
+  roster.forEach(function(p){ROSTER.push({id:p.id,name:p.name});saved.name[p.id]=p.name});
+  var hasMe=ROSTER.some(function(p){return p.id===ROLE.uid});
+  if(!hasMe&&(!ROLE.admin||!ROSTER.length||legacy)){
+    ROSTER.push({id:ROLE.uid,name:legacy?(legacy.agent||''):''});
+    if(legacy)pendingMigrate=true;
+  }
+  sortRoster();
+  var ids=ROLE.admin?ROSTER.map(function(p){return p.id}):[ROLE.uid];
+  await Promise.all(ids.map(async function(pid){
+    if(legacy&&pid===ROLE.uid){ALL[pid]=legacy.days;return}
+    ALL[pid]=await withTimeout(Store.loadDays(pid),9000);
+    snapYears(pid);
+  }));
+  var want=null;try{want=localStorage.getItem('carnet-cur')}catch(e){want=null}
+  CUR=(ROLE.admin&&want&&ALL[want])?want:(ALL[ROLE.uid]?ROLE.uid:(ROSTER[0]?ROSTER[0].id:null));
+  S.days=ALL[CUR]||{};
+  S.agent=nameOf(CUR);
+}
+function fileSaver(){return {save:async function(o){
+  var blob=(o.data instanceof Blob)?o.data:new Blob([o.data]);
+  var u=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=u;a.download=o.filename;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(u)},5000);return {status:'saved'};
+}}}
+function loginScreen(msg){
+  return new Promise(async function(resolve){
+    var box=$('#login'),mode='in',names=[],note=msg||'';
+    try{names=await rpc('rh_roster_public')||[]}catch(e){note=note||'Connexion au serveur impossible. Vérifiez le réseau.'}
+    if(!names.length)mode='new';
+    function draw(){
+      var tabs='<div class="ltabs"><button data-m="in" class="'+(mode==='in'?'on':'')+'">Me connecter</button><button data-m="new" class="'+(mode==='new'?'on':'')+'">Première fois</button><button data-m="chef" class="'+(mode==='chef'?'on':'')+'">Responsable</button></div>';
+      var f='';
+      if(mode==='in')f='<label>Votre nom<select id="lName">'+names.map(function(n){return '<option value="'+esc(n.id)+'">'+esc(n.name||'(sans nom)')+'</option>'}).join('')+'</select></label><label>Code PIN<input id="lPin" type="password" inputmode="numeric" autocomplete="current-password"></label>';
+      if(mode==='new')f='<label>Nom Prénom<input id="lNew" type="text" autocomplete="name"></label><label>Code équipe (donné par le responsable)<input id="lTeam" type="text" autocapitalize="characters" autocomplete="off"></label><label>Choisissez un code PIN (4 chiffres ou plus)<input id="lPin" type="password" inputmode="numeric" autocomplete="new-password"></label>';
+      if(mode==='chef')f='<label>Code responsable<input id="lPin" type="password" autocomplete="current-password"></label>';
+      box.innerHTML='<form class="lcard" id="lForm"><h2>Relever d’heure</h2>'+tabs+f+'<p class="lmsg" id="lMsg">'+esc(note)+'</p><button class="btn primary" type="submit">'+(mode==='new'?'Créer mon accès':'Entrer')+'</button></form>';
+      box.hidden=false;
+    }
+    box.onclick=function(e){var b=e.target.closest('[data-m]');if(b){mode=b.dataset.m;note='';draw()}};
+    box.onsubmit=async function(e){
+      e.preventDefault();
+      var pin=($('#lPin',box).value||'').trim(),m=$('#lMsg',box),btn=$('button[type=submit]',box);
+      btn.disabled=true;m.textContent='';
+      try{
+        var uid=null;
+        if(mode==='chef'){uid='chef'}
+        else if(mode==='in'){uid=$('#lName',box).value}
+        else{
+          var nm=$('#lNew',box).value.trim(),tm=$('#lTeam',box).value.trim();
+          if(nm.length<2||pin.length<4)throw new Error('input');
+          uid=await rpc('rh_register',{p_name:nm,p_pin:pin,p_team:tm});
+        }
+        var role=await rpc('rh_login',{p_uid:uid,p_pin:pin});
+        if(!role){m.textContent='Code incorrect.';btn.disabled=false;return}
+        box.hidden=true;box.innerHTML='';resolve({uid:uid,pin:pin});
+      }catch(err){
+        var s=String(err&&err.message||'');
+        m.textContent=s.indexOf('team_code')>=0?'Code équipe incorrect.':(s==='Error: input'||s==='input'||s.indexOf('bad_input')>=0)?'Nom (2 lettres min.) et PIN (4 min.) requis.':'Connexion impossible. Réessayez.';
+        btn.disabled=false;
+      }
+    };
+    draw();
+  });
+}
+async function loadStore(){
+  dl=fileSaver();DB0=null;
+  var s=null;try{s=JSON.parse(localStorage.getItem('rh-session'))}catch(e){s=null}
+  var note='';
+  for(;;){
+    if(!s)s=await loginScreen(note);
+    try{
+      var role=await rpc('rh_login',{p_uid:s.uid,p_pin:s.pin});
+      if(!role){s=null;note='Session expirée. Reconnectez-vous.';try{localStorage.removeItem('rh-session')}catch(e){}continue}
+      AUTH=s;ROLE={admin:role==='chef',uid:s.uid};Store=cloudStore();
+      await bootstrap(null);
+      try{localStorage.setItem('rh-session',JSON.stringify(s))}catch(e){}
+      return;
+    }catch(err){
+      note='Connexion au serveur impossible. Réessayez.';s=null;
+    }
+  }
+}
+
+/* ---------- Statistiques ---------- */
+function statsHtml(t){
+  return '<div class="stat"><span>Jours travaillés</span><b class="num">'+t.days+'</b></div>'+
+    '<div class="stat"><span>Heures</span><b class="num">'+fnum(t.h)+'<i>h</i></b></div>'+
+    '<div class="stat"><span>Kilomètres</span><b class="num">'+fkm(t.km)+'<i>km</i></b></div>'+
+    '<div class="stat"><span>Heures de route</span><b class="num">'+fnum(t.rh)+'<i>h</i></b></div>'+
+    '<div class="stat igd"><span>IGD</span><b class="num">'+t.igd+'</b></div>'+
+    '<div class="stat igd"><span>Petit IGD</span><b class="num">'+t.pigd+'</b></div>'+(t.ferie?'<div class="stat"><span>Jours fériés</span><b class="num">'+t.ferie+'</b></div>':'')+(t.intemp?'<div class="stat"><span>Intempéries</span><b class="num">'+t.intemp+'</b></div>':'');
+}
+function inMonth(y,m){var p=y+'-'+pad(m)+'-';return function(k){return k.indexOf(p)===0}}
+function inYear(y){var p=y+'-';return function(k){return k.indexOf(p)===0}}
+
+/* ---------- Saisie : calendrier ---------- */
+function renderCal(){
+  var y=view.y,m=view.m;
+  $('#mLabel').textContent=MOIS[m-1].charAt(0).toUpperCase()+MOIS[m-1].slice(1)+' '+y;
+  $('#yLabel').textContent=y;
+  var lead=(new Date(Date.UTC(y,m-1,1)).getUTCDay()+6)%7;
+  var dim=new Date(Date.UTC(y,m,0)).getUTCDate();
+  var h='<div class="dh">Sem</div>'+JC.map(function(j){return '<div class="dh">'+j.replace('.','')+'</div>'}).join('');
+  h+=wkCell(iso(y,m,1));for(var i=0;i<lead;i++)h+='<div class="dc empty"></div>';
+  for(var d=1;d<=dim;d++){
+    if(d>1&&(lead+d-1)%7===0)h+=wkCell(iso(y,m,d));
+    var k=iso(y,m,d),hrs=dayHours(k),ig=igdOf(k),pg=pigdOf(k),st=statusOf(k),we=(lead+d-1)%7>=5;
+    h+='<button class="dc'+(st==='ferie'?' ferie':st==='intemp'?' meteo':'')+(hrs>0?' on':'')+(we?' we':'')+(k===view.sel?' sel':'')+(k===TODAY?' today':'')+'" data-d="'+k+'" aria-pressed="'+(k===view.sel)+'" aria-label="'+esc(longDate(k))+(hrs>0?', '+fnum(hrs)+' heures':'')+(ig>0?', '+ig+' IGD':'')+(pg>0?', '+pg+' petit IGD':'')+(st?', '+statusLabel(st):'')+'">'+
+      '<span class="n">'+d+'</span>'+'<span class="igs">'+(ig>0?'<span class="ig">IGD'+(ig>1?'×'+ig:'')+'</span>':'')+(pg>0?'<span class="ig p">petit'+(pg>1?'×'+pg:'')+'</span>':'')+'</span>'+''+(st?'<span class="stl">'+(st==='ferie'?'Férié':'Intem.')+'</span>':'<span class="hv num">'+(hrs>0?fnum(hrs):'')+'</span>')+'</button>';
+  }
+  $('#cal').innerHTML=h;
+  $('#monthStats').innerHTML=statsHtml(tot(inMonth(y,m)));
+}
+
+/* ---------- Saisie : fiche du jour ---------- */
+var TYPES=[['n','Aucun'],['a','Aller'],['r','Retour'],['ar','Aller et retour'],['ic','Interchantier'],['x','Autre']];
+function typeLabel(t){var f=TYPES.find(function(x){return x[0]===t});return f?f[1]:'Aller et retour'}
+function typeOptions(sel){return TYPES.map(function(x){return '<option value="'+x[0]+'"'+(x[0]===sel?' selected':'')+'>'+x[1]+'</option>'}).join('')}
+function mapHref(l){return (l.from&&l.to)?'https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(l.from)+'&destination='+encodeURIComponent(l.to)+'&travelmode=driving':''}
+function siteOptions(sel){
+  return S.folders.map(function(f){
+    var ss=S.sites.filter(function(s){return s.folderId===f.id});
+    if(!ss.length)return '';
+    return '<optgroup label="'+esc(f.name)+'">'+ss.map(function(s){return '<option value="'+s.id+'"'+(s.id===sel?' selected':'')+'>'+esc(s.name)+'</option>'}).join('')+'</optgroup>';
+  }).join('');
+}
+function lineHtml(l,idx){
+  return '<div class="line" data-id="'+l.id+'">'+
+    '<div class="grid2">'+
+      '<label class="f"><span class="l">Chantier</span><select data-f="siteId">'+siteOptions(l.siteId)+'</select></label>'+
+      '<label class="f"><span class="l">Type de trajet</span><select data-f="type">'+typeOptions(l.type)+'</select></label>'+
+    '</div>'+
+    '<div class="grid2"><label class="f"><span class="l">Départ (ville ou adresse)</span><input type="text" data-f="from" value="'+esc(l.from||'')+'" placeholder="ex. Le Cannet" autocomplete="off"></label><label class="f"><span class="l">Arrivée (ville ou adresse)</span><input type="text" data-f="to" value="'+esc(l.to||'')+'" placeholder="ex. Port de Toulon" autocomplete="off"></label></div>'+
+    '<div class="grid3">'+
+      '<label class="f"><span class="l">Heures travaillées</span><input type="number" inputmode="decimal" step="0.25" min="0" max="24" data-f="h" value="'+(l.h?l.h:'')+'" placeholder="0"></label>'+
+      '<label class="f"><span class="l">Kilomètres</span><input type="number" inputmode="decimal" step="1" min="0" data-f="km" value="'+(l.km?l.km:'')+'" placeholder="0"></label>'+
+      '<div class="f"><label for="rh-'+l.id+'" class="l" style="font-size:12px;color:var(--muted)">Heures de route</label><input id="rh-'+l.id+'" type="number" inputmode="decimal" step="0.5" min="0" data-f="rh" value="'+roadOf(l)+'"><span class="tag" data-tag="rh"></span></div>'+
+    '</div>'+
+    '<div class="actions" style="margin:0"><a class="link" data-maplink target="_blank" rel="noopener" href="'+esc(mapHref(l)||'#')+'"'+(mapHref(l)?'':' hidden')+'>Voir l\u2019itinéraire (Google Maps)</a>'+(ROLE.admin?'<button class="link" data-act="rename-site">Renommer ce chantier</button>':'')+(idx>0||S.days[view.sel].lines.length>1?'<button class="link danger" data-act="del-line">Retirer cette ligne</button>':'')+'</div>'+
+  '</div>';
+}
+function dayNavHtml(k){
+  var mon=mondayOf(k),i,d,p,hr,st,o='<div class="daynav"><button class="btn icon" data-go="'+shiftIso(k,-1)+'" aria-label="Jour pr\u00e9c\u00e9dent">\u2039</button><div class="wkstrip">';
+  for(i=0;i<7;i++){
+    d=shiftIso(mon,i);p=parts(d);hr=dayHours(d);st=statusOf(d);
+    o+='<button class="wd'+(d===k?' sel':'')+(hr>0?' on':'')+(st?' '+st:'')+'" data-go="'+d+'" aria-pressed="'+(d===k)+'" aria-label="'+esc(longDate(d))+'"><span>'+JC[i].replace('.','')+'</span><b>'+p[2]+'</b><i>'+(st?(st==='ferie'?'F':'I'):(hr>0?fnum(hr):''))+'</i></button>';
+  }
+  return o+'</div><button class="btn icon" data-go="'+shiftIso(k,1)+'" aria-label="Jour suivant">\u203a</button></div>';
+}
+function statusSelectHtml(){return '<label class="f" style="margin-bottom:10px"><span class="l">Type de journ\u00e9e</span><select id="dayStatus"><option value="">Journ\u00e9e travaill\u00e9e</option><option value="ferie">Jour f\u00e9ri\u00e9</option><option value="intemp">Intemp\u00e9rie</option></select></label>'}
+function renderEditor(){
+  if(!S.sites.length){$('#editor').innerHTML='<div class="empty-note">Aucun chantier disponible pour le moment. Le responsable doit d\u2019abord en cr\u00e9er dans l\u2019onglet Chantiers.</div>';return}
+  var k=view.sel;ensureDay(k);
+  var e=S.days[k];
+  if(e.status){
+    $('#editor').innerHTML=dayNavHtml(k)+'<div class="dayhead"><h2>'+esc(longDate(k))+'</h2><span class="hint">Semaine '+isoWeek(k)+'</span></div>'+statusSelectHtml()+'<div class="empty-note">Journée non travaillée : '+(e.status==='ferie'?'jour férié':'intempérie')+'. Aucune heure, trajet ni IGD pour ce jour, mais la série d\u2019IGD continue. Choisissez « Journée travaillée » pour la saisir normalement.</div>';
+    $('#dayStatus').value=e.status;return;
+  }
+  var hasPrev=!!S.days[prevIso(k)]&&S.days[prevIso(k)].lines.some(function(l){return !isBlank(l)});
+  $('#editor').innerHTML=
+    dayNavHtml(k)+'<div class="dayhead"><h2>'+esc(longDate(k))+'</h2><span class="hint">Semaine '+isoWeek(k)+'</span></div>'+statusSelectHtml()+
+    '<div id="lines">'+e.lines.map(lineHtml).join('')+'</div>'+
+    '<div class="actions"><button class="btn" data-act="add-line">+ Ajouter un chantier ou un trajet</button>'+
+      (hasPrev?'<button class="btn" data-act="copy-prev">Copier la veille</button>':'')+
+    '</div>'+
+    '<div class="igdbox"><div class="row"><h3>Indemnités de grand déplacement</h3></div>'+
+      '<div class="row"><label for="igdIn" class="hint"><b>IGD</b> du jour</label><span class="tag" id="igdTag"></span><input id="igdIn" type="number" inputmode="numeric" min="0" max="9" step="1"></div>'+
+      '<div class="row"><label for="pigdIn" class="hint"><b>Petit IGD</b> (dernier jour)</label><span class="tag" id="pigdTag"></span><input id="pigdIn" type="number" inputmode="numeric" min="0" max="9" step="1"></div>'+
+      '<p class="hint" id="igdWhy"></p></div>'+
+    '<div class="daytotal num" id="dayTotal"></div>'+
+    '<div class="actions"><button class="link danger" data-act="clear-day" id="clearDay">Vider la journée</button></div>';
+  $('#dayStatus').value='';
+  syncEditor();
+}
+function syncEditor(){
+  var k=view.sel,e=S.days[k];if(!e)return;
+  $$('#editor .line').forEach(function(el){
+    var l=e.lines.find(function(x){return x.id===el.dataset.id});if(!l)return;
+    var ri=$('[data-f=rh]',el);
+    if(document.activeElement!==ri)ri.value=roadOf(l);
+    var tg=$('[data-tag=rh]',el);
+    if(l.rh!=null){tg.className='tag manual';tg.innerHTML='modifié · <button type="button" data-act="rh-auto">remettre auto</button>'}
+    else{tg.className='tag';tg.textContent='auto · 1 h / 100 km'}
+  });
+  var ii=$('#igdIn'),tg2=$('#igdTag'),pi=$('#pigdIn'),tg3=$('#pigdTag');
+  if(document.activeElement!==ii)ii.value=igdOf(k);
+  if(document.activeElement!==pi)pi.value=pigdOf(k);
+  if(e.igd!=null){tg2.className='tag manual';tg2.innerHTML='modifié · <button type="button" data-act="igd-auto">remettre auto</button>'}
+  else{tg2.className='tag';tg2.textContent='auto'}
+  if(e.pigd!=null){tg3.className='tag manual';tg3.innerHTML='modifié · <button type="button" data-act="pigd-auto">remettre auto</button>'}
+  else{tg3.className='tag';tg3.textContent='auto'}
+  var nw=inSeries(nextIso(k)),pw=inSeries(prevIso(k));
+  $('#igdWhy').textContent=worked(k)?(nw?'Le lendemain est aussi travaillé : 1 IGD.':(pw?'Dernier jour de la série : 1 petit IGD.':'Jour isolé : pas d’IGD.')):'Saisissez des heures pour calculer les IGD.';
+  var t=tot(function(x){return x===k});
+  $('#dayTotal').innerHTML='<span>'+fnum(t.h)+' h travaillées</span><span>'+fkm(t.km)+' km</span><span>'+fnum(t.rh)+' h de route</span><span style="color:var(--teal)">'+t.igd+' IGD · '+t.pigd+' petit IGD</span>';
+}
+function refresh(){renderCal();syncEditor();markDirty()}
+function select(k){
+  view.sel=k;var p=parts(k);view.y=p[0];view.m=p[1];
+  ensureDay(k);prune(k);renderCal();renderEditor();
+}
+function num(v){var n=parseFloat(String(v).replace(',','.'));return isFinite(n)&&n>=0?n:0}
+
+function armed(btn,label,fn){
+  if(btn.dataset.armed){fn();return}
+  btn.dataset.armed='1';var old=btn.textContent;btn.textContent=label;
+  setTimeout(function(){if(btn.isConnected){delete btn.dataset.armed;btn.textContent=old}},3500);
+}
+
+/* ---------- Récapitulatif ---------- */
+function renderRecap(){
+  var y=view.y,t=tot(inYear(y)),rows='';
+  for(var m=1;m<=12;m++){
+    var a=tot(inMonth(y,m));
+    rows+='<tr class="'+(a.days?'':'zero')+'"><td>'+MOIS[m-1].charAt(0).toUpperCase()+MOIS[m-1].slice(1)+'</td><td>'+a.days+'</td><td>'+fnum(a.h)+'</td><td>'+fkm(a.km)+'</td><td>'+fnum(a.rh)+'</td><td>'+a.igd+'</td><td>'+a.pigd+'</td><td>'+a.ferie+'</td><td>'+a.intemp+'</td></tr>';
+  }
+  rows+='<tr class="tot"><td>Total '+y+'</td><td>'+t.days+'</td><td>'+fnum(t.h)+'</td><td>'+fkm(t.km)+'</td><td>'+fnum(t.rh)+'</td><td>'+t.igd+'</td><td>'+t.pigd+'</td><td>'+t.ferie+'</td><td>'+t.intemp+'</td></tr>';
+  var per={};
+  Object.keys(S.days).filter(inYear(y)).forEach(function(k){
+    S.days[k].lines.forEach(function(l){
+      var o=per[l.siteId]||(per[l.siteId]={days:{},h:0,km:0,rh:0});
+      if(+l.h>0)o.days[k]=1;o.h+=+l.h||0;o.km+=+l.km||0;o.rh+=roadOf(l);
+    });
+  });
+  var sr='';
+  S.folders.forEach(function(f){
+    var ids=Object.keys(per).filter(function(id){var s=siteById(id);return s&&s.folderId===f.id});
+    if(!ids.length)return;
+    sr+='<tr class="grp"><td colspan="5">'+esc(f.name)+'</td></tr>';
+    ids.forEach(function(id){var o=per[id];sr+='<tr><td>'+esc(siteName(id))+'</td><td>'+Object.keys(o.days).length+'</td><td>'+fnum(o.h)+'</td><td>'+fkm(o.km)+'</td><td>'+fnum(o.rh)+'</td></tr>'});
+  });
+  var demo=Object.keys(S.days).some(function(k){return S.days[k].lines.some(function(l){return l.demo})});
+  var empty=!Object.keys(S.days).filter(inYear(y)).some(function(k){return S.days[k].lines.some(function(l){return !isBlank(l)})});
+  $('#tab-recap').innerHTML='<div class="sec"><h2>Année '+y+(S.agent?' · '+esc(S.agent):'')+'</h2><div class="stats">'+statsHtml(t)+'</div>'+
+    (empty?'<div class="empty-note">Aucune journée saisie en '+y+'. Remplissez le calendrier, ou chargez quelques journées d’exemple pour voir le résultat.<div class="actions"><button class="btn primary" data-act="demo">Charger des journées d’exemple</button></div></div>':'')+
+    '<h3>Par mois</h3><div class="tw"><table><thead><tr><th>Mois</th><th>Jours</th><th>Heures</th><th>Km</th><th>H route</th><th>IGD</th><th>Petit IGD</th><th>Fériés</th><th>Intempéries</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<h3>Par chantier</h3>'+(sr?'<div class="tw"><table><thead><tr><th>Chantier</th><th>Jours</th><th>Heures</th><th>Km</th><th>H route</th></tr></thead><tbody>'+sr+'</tbody></table></div>':'<p class="hint">Aucun chantier utilisé en '+y+'.</p>')+
+    (demo?'<div><button class="btn" data-act="clear-demo">Retirer les journées d’exemple</button></div>':'')+
+  '</div>';
+}
+function loadDemo(){
+  var y=view.y,m=view.m,sid=lastSiteId(),n=0;
+  [[2,8,85],[3,8,85],[4,9,120],[5,8,230],[6,7.5,85],[9,8,85],[10,8,0]].forEach(function(r){
+    var k=iso(y,m,r[0]);
+    if(S.days[k]&&S.days[k].lines.some(function(l){return !isBlank(l)}))return;
+    S.days[k]={lines:[{id:rid(),siteId:sid,type:'ar',h:r[1],km:r[2],rh:null,demo:true}],igd:null,pigd:null};n++;
+  });
+  markDirty();renderCal();renderRecap();
+}
+function clearDemo(){
+  Object.keys(S.days).forEach(function(k){
+    S.days[k].lines=S.days[k].lines.filter(function(l){return !l.demo});
+    if(!S.days[k].lines.length)delete S.days[k];
+  });
+  ensureDay(view.sel);markDirty();renderCal();renderRecap();
+}
+
+/* ---------- Chantiers ---------- */
+function renderSites(msg,cls){
+  if(!ROLE.admin){$('#tab-sites').innerHTML='<div class="sec"><h2>Chantiers et dossiers</h2><p class="hint">Liste tenue par le responsable. Pour ajouter ou renommer un chantier, contactez-le.</p>'+S.folders.map(function(f){return '<div class="panel"><h3>'+esc(f.name)+'</h3><ul>'+S.sites.filter(function(s){return s.folderId===f.id}).map(function(s){return '<li>'+esc(s.name)+'</li>'}).join('')+'</ul></div>'}).join('')+'</div>';return}
+  var h='<div class="sec"><h2>Chantiers et dossiers</h2><p class="hint">Classez vos chantiers par dossier (client, zone, année…). Les chantiers apparaissent dans la saisie, groupés par dossier. Pour changer un nom, modifiez-le dans son champ puis quittez le champ : il s\u2019enregistre et se met à jour partout, y compris dans les exports.</p><div class="folders">';
+  S.folders.forEach(function(f){
+    var ss=S.sites.filter(function(s){return s.folderId===f.id});
+    h+='<div class="panel folder" data-fid="'+f.id+'"><div class="fh"><input type="text" data-fname="'+f.id+'" value="'+esc(f.name)+'" aria-label="Nom du dossier" style="font-weight:600"><button class="btn" data-act="del-folder" data-fid="'+f.id+'" aria-label="Supprimer le dossier">Supprimer</button></div>';
+    ss.forEach(function(s){
+      h+='<div class="site"><input type="text" data-sname="'+s.id+'" value="'+esc(s.name)+'" aria-label="Nom du chantier">'+
+        '<select data-smove="'+s.id+'" aria-label="Déplacer vers un dossier">'+S.folders.map(function(g){return '<option value="'+g.id+'"'+(g.id===s.folderId?' selected':'')+'>'+esc(g.name)+'</option>'}).join('')+'</select>'+
+        '<button class="btn icon" data-act="del-site" data-sid="'+s.id+'" aria-label="Supprimer le chantier">✕</button></div>';
+    });
+    if(!ss.length)h+='<p class="hint">Dossier vide.</p>';
+    h+='<div class="addrow"><input type="text" id="newsite-'+f.id+'" placeholder="Nouveau chantier" aria-label="Nom du nouveau chantier"><button class="btn primary" data-act="add-site" data-fid="'+f.id+'">Ajouter</button></div></div>';
+  });
+  h+='</div><div class="panel"><div class="addrow" style="margin:0"><input type="text" id="newfolder" placeholder="Nouveau dossier (ex. Port de Cannes 2026)" aria-label="Nom du nouveau dossier"><button class="btn primary" data-act="add-folder">Créer le dossier</button></div></div>'+
+    '<div class="msg'+(cls?' '+cls:'')+'" id="sitesMsg" aria-live="polite">'+esc(msg||'')+'</div></div>';
+  $('#tab-sites').innerHTML=h;
+}
+function siteUses(id){var n=0;Object.keys(ALL).forEach(function(pid){var d=ALL[pid]||{};Object.keys(d).forEach(function(k){d[k].lines.forEach(function(l){if(l.siteId===id&&!isBlank(l))n++})})});return n}
+
+/* ---------- Export ---------- */
+function shiftIso(s,n){var p=parts(s),t=new Date(Date.UTC(p[0],p[1]-1,p[2]+n));return iso(t.getUTCFullYear(),t.getUTCMonth()+1,t.getUTCDate())}
+function mondayOf(s){return shiftIso(s,-dow(s))}
+var expKind='week',expMonth=now.getMonth()+1,expWeek=mondayOf(TODAY),semWeek=mondayOf(TODAY);
+function weekLabel(){return 'Semaine '+isoWeek(expWeek)+' (du '+fdate(expWeek)+' au '+fdate(shiftIso(expWeek,6))+')'}
+function monthName(m){return MOIS[m-1].charAt(0).toUpperCase()+MOIS[m-1].slice(1)}
+function periodSel(){
+  var o='<label class="f"><span class="l">Période</span><select id="expKind"><option value="week"'+(expKind==='week'?' selected':'')+'>Semaine</option><option value="month"'+(expKind==='month'?' selected':'')+'>Mois</option><option value="year"'+(expKind==='year'?' selected':'')+'>Année '+view.y+' complète</option></select></label>';
+  if(expKind==='week')o+='<div class="addrow" style="margin:0;align-items:center"><button class="btn icon" data-act="wk-prev" aria-label="Semaine précédente">‹</button><strong style="flex:1;text-align:center">'+weekLabel()+'</strong><button class="btn icon" data-act="wk-next" aria-label="Semaine suivante">›</button></div>';
+  if(expKind==='month'){o+='<label class="f"><span class="l">Mois de '+view.y+'</span><select id="expMonth">';for(var m=1;m<=12;m++)o+='<option value="'+m+'"'+(m===expMonth?' selected':'')+'>'+monthName(m)+'</option>';o+='</select></label>'}
+  return o;
+}
+function periodPred(){
+  if(expKind==='week'){var a=expWeek,b=shiftIso(a,6);return function(k){return k>=a&&k<=b}}
+  return expKind==='month'?inMonth(view.y,expMonth):inYear(view.y);
+}
+function periodLabel(){return expKind==='week'?weekLabel():expKind==='month'?monthName(expMonth)+' '+view.y:'Année '+view.y}
+function buildRows(){
+  var pred=periodPred(),rows=[];
+  Object.keys(S.days).filter(pred).sort().forEach(function(k){
+    if(S.days[k].status){rows.push({date:k,jour:JC[dow(k)]+' S'+isoWeek(k),dossier:'',site:statusLabel(S.days[k].status),type:'',h:0,km:0,rh:0,igd:null,pigd:null});return}
+    var first=true;
+    S.days[k].lines.filter(function(l){return !isBlank(l)}).forEach(function(l){
+      rows.push({date:k,jour:JC[dow(k)]+' S'+isoWeek(k),dossier:folderName(l.siteId),site:siteName(l.siteId),type:typeLabel(l.type)+((l.from||l.to)?' : '+(l.from||'?')+' > '+(l.to||'?'):''),h:+l.h||0,km:+l.km||0,rh:roadOf(l),igd:first?igdOf(k):null,pigd:first?pigdOf(k):null});
+      first=false;
+    });
+  });
+  return rows;
+}
+function sums(rows){return rows.reduce(function(a,r){a.h+=r.h;a.km+=r.km;a.rh+=r.rh;a.igd+=r.igd||0;a.pigd+=r.pigd||0;return a},{h:0,km:0,rh:0,igd:0,pigd:0})}
+function monthRows(){
+  var out=[];for(var m=1;m<=12;m++){var a=tot(inMonth(view.y,m));out.push([MOIS[m-1].charAt(0).toUpperCase()+MOIS[m-1].slice(1),a.days,a.h,a.km,a.rh,a.igd,a.pigd,a.ferie,a.intemp])}
+  var t=tot(inYear(view.y));out.push(['Total '+view.y,t.days,t.h,t.km,t.rh,t.igd,t.pigd,t.ferie,t.intemp]);return out;
+}
+function siteRows(rows){
+  var per={};
+  rows.forEach(function(r){if(!r.type)return;var key=r.dossier+'||'+r.site;var o=per[key]||(per[key]={dossier:r.dossier,site:r.site,days:{},h:0,km:0,rh:0});if(r.h>0)o.days[r.date]=1;o.h+=r.h;o.km+=r.km;o.rh+=r.rh});
+  return Object.keys(per).sort().map(function(k){var o=per[k];return [o.dossier,o.site,Object.keys(o.days).length,o.h,o.km,o.rh]});
+}
+function fileBase(){
+  var n=(S.agent||'agent').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')||'agent';
+  return 'heures_'+n+'_'+(expKind==='year'?view.y:expKind==='month'?view.y+'-'+pad(expMonth):'semaine_'+pad(isoWeek(expWeek))+'_'+expWeek);
+}
+function renderExport(){
+  var rows=buildRows(),s=sums(rows);
+  $('#tab-export').innerHTML='<div class="sec"><h2>Export</h2><div class="exp"><div class="panel f" style="gap:12px">'+
+    periodSel()+
+    '<div class="stats" style="grid-template-columns:repeat(2,1fr)"><div class="stat"><span>Lignes</span><b class="num">'+rows.length+'</b></div><div class="stat"><span>Heures</span><b class="num">'+fnum(s.h)+'<i>h</i></b></div><div class="stat"><span>Km · h route</span><b class="num">'+fkm(s.km)+'<i>km</i> · '+fnum(s.rh)+'<i>h</i></b></div><div class="stat igd"><span>IGD · petit IGD</span><b class="num">'+s.igd+' · '+s.pigd+'</b></div></div>'+
+    '<div class="btns"><button class="btn primary" data-act="x-xlsx"'+(dl?'':' disabled')+'>Télécharger en Excel</button><button class="btn primary" data-act="x-pdf"'+(dl?'':' disabled')+'>Télécharger en PDF</button></div>'+
+    '<div class="msg" id="expMsg" aria-live="polite">'+(dl?'':'L’export n’est pas disponible dans cette vue.')+'</div></div>'+
+    '<div class="panel"><h3>Contenu du fichier</h3><p class="hint" style="margin-top:6px">Une ligne par chantier et par jour : date, dossier, chantier, type de trajet, heures travaillées, kilomètres, heures de route et IGD (comptées une fois par jour). Totaux en bas. Choisissez une semaine pour récupérer les données de fin de semaine, ou un mois ou l\u2019année entière. Pour une année complète, le fichier contient aussi le récapitulatif par mois.</p></div></div></div>';
+}
+async function exportFile(kind){
+  var msg=$('#expMsg');msg.className='msg';
+  var rows=buildRows();
+  if(!rows.length){msg.className='msg err';msg.textContent='Aucune journée à exporter sur cette période.';return}
+  if(!dl){msg.className='msg err';msg.textContent='L’export n’est pas disponible dans cette vue.';return}
+  var s=sums(rows),label=periodLabel(),agent=S.agent||'Agent non renseigné';
+  var cols=['Date','Jour','Dossier','Chantier','Trajet','Heures','Km','H route','IGD','Petit IGD'];
+  var body=rows.map(function(r){return [fdate(r.date),r.jour,r.dossier,r.site,r.type,r.h,r.km,r.rh,r.igd==null?'':r.igd,r.pigd==null?'':r.pigd]});
+  var year=expKind==='year';
+  try{
+    if(kind==='xlsx'){
+      if(!window.XLSX)throw new Error('lib');
+      var X=window.XLSX,wb=X.utils.book_new();
+      var ws=X.utils.aoa_to_sheet([["Relever d'heure"],['Agent',agent],['Période',label],[],cols].concat(body,[[],['Total','','','','',s.h,s.km,s.rh,s.igd,s.pigd]]));
+      ws['!cols']=[{wch:12},{wch:11},{wch:24},{wch:30},{wch:50},{wch:9},{wch:9},{wch:9},{wch:6},{wch:10}];
+      X.utils.book_append_sheet(wb,ws,'Détail');
+      if(year){
+        var w2=X.utils.aoa_to_sheet([['Mois','Jours travaillés','Heures','Km','H route','IGD','Petit IGD','Fériés','Intempéries']].concat(monthRows()));
+        w2['!cols']=[{wch:16},{wch:16},{wch:10},{wch:10},{wch:10},{wch:8},{wch:10},{wch:9},{wch:12}];
+        X.utils.book_append_sheet(wb,w2,'Par mois');
+      }
+      var w3=X.utils.aoa_to_sheet([['Dossier','Chantier','Jours','Heures','Km','H route']].concat(siteRows(rows)));
+      w3['!cols']=[{wch:24},{wch:30},{wch:8},{wch:10},{wch:10},{wch:10}];
+      X.utils.book_append_sheet(wb,w3,'Par chantier');
+      var out=X.write(wb,{bookType:'xlsx',type:'array'});
+      await dl.save({filename:fileBase()+'.xlsx',data:new Blob([out])});
+    }else{
+      if(!(window.jspdf&&window.jspdf.jsPDF))throw new Error('lib');
+      var doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+      if(typeof doc.autoTable!=='function')throw new Error('lib');
+      doc.setFontSize(18);doc.text("Relever d'heure",14,16);
+      doc.setFontSize(11);doc.text('Agent : '+agent,14,23);doc.text('Période : '+label,14,29);
+      var head={fillColor:[13,34,49],textColor:255,fontStyle:'bold'};
+      var num=function(i){var o={};i.forEach(function(c){o[c]={halign:'center'}});return o};
+      doc.autoTable({startY:34,head:[cols],body:body.map(function(r){return r.map(function(c,i){return i>=5&&c!==''?fnum(c):c})}),
+        foot:[['Total','','','','',fnum(s.h),fkm(s.km),fnum(s.rh),String(s.igd),String(s.pigd)]],showFoot:'lastPage',
+        styles:{fontSize:9,cellPadding:1.8},headStyles:head,footStyles:{fillColor:[225,232,236],textColor:20,fontStyle:'bold'},columnStyles:num([5,6,7,8,9]),didParseCell:function(d){d.cell.styles.valign='middle';if(d.column.index>=5)d.cell.styles.halign='center'}});
+      if(year){
+        var y0=doc.lastAutoTable.finalY+10;if(y0>165){doc.addPage();y0=16}
+        doc.setFontSize(13);doc.text('Récapitulatif par mois',14,y0);
+        doc.autoTable({startY:y0+3,head:[['Mois','Jours travaillés','Heures','Km','H route','IGD','Petit IGD','Fériés','Intempéries']],
+          body:monthRows().map(function(r){return [r[0],String(r[1]),fnum(r[2]),fkm(r[3]),fnum(r[4]),String(r[5]),String(r[6]),String(r[7]),String(r[8])]}),
+          styles:{fontSize:9,cellPadding:1.8},headStyles:head,columnStyles:num([1,2,3,4,5,6,7,8]),
+          didParseCell:function(d){if(d.column.index>=1)d.cell.styles.halign='center';if(d.section==='body'&&d.row.index===12){d.cell.styles.fontStyle='bold'}}});
+      }
+      var y1=doc.lastAutoTable.finalY+10;if(y1>165){doc.addPage();y1=16}
+      doc.setFontSize(13);doc.text('Récapitulatif par chantier',14,y1);
+      doc.autoTable({startY:y1+3,head:[['Dossier','Chantier','Jours','Heures','Km','H route']],
+        body:siteRows(rows).map(function(r){return [r[0],r[1],String(r[2]),fnum(r[3]),fkm(r[4]),fnum(r[5])]}),
+        styles:{fontSize:9,cellPadding:1.8},headStyles:head,columnStyles:num([2,3,4,5]),didParseCell:function(d){if(d.column.index>=2)d.cell.styles.halign='center'}});
+      await dl.save({filename:fileBase()+'.pdf',data:doc.output('arraybuffer')});
+    }
+    msg.className='msg ok';msg.textContent='Fichier prêt.';
+  }catch(e){
+    msg.className='msg err';
+    if(e&&e.code==='declined')msg.textContent='Téléchargement annulé.';
+    else if(e&&e.message==='lib')msg.textContent='Le module d’export n’a pas pu se charger. Rechargez la page.';
+    else msg.textContent='Le fichier n’a pas pu être créé.';
+  }
+}
+
+/* ---------- Semaine ---------- */
+function renderSemaine(){
+  var a=semWeek,b=shiftIso(a,6),days=[],i;
+  for(i=0;i<7;i++)days.push(shiftIso(a,i));
+  var t=tot(function(k){return k>=a&&k<=b});
+  var rows='';
+  days.forEach(function(k){
+    var e=S.days[k],lines=e?e.lines.filter(function(l){return !isBlank(l)}):[];
+    var p=parts(k),lab='<b>'+JC[dow(k)]+'</b> '+pad(p[2])+'/'+pad(p[1]);
+    if(!lines.length){
+      rows+='<tr class="zero"><td>'+lab+'</td><td class="rest" colspan="6">'+(statusOf(k)?statusLabel(statusOf(k)):(dow(k)>=5?'Repos':'Pas de saisie'))+'</td><td><button class="link" data-d="'+k+'">Saisir</button></td></tr>';
+      return;
+    }
+    var ig=igdOf(k),pg=pigdOf(k),n=lines.length;
+    lines.forEach(function(l,j){
+      rows+='<tr>'+(j===0?'<td rowspan="'+n+'">'+lab+'</td>':'')+
+        '<td class="tl">'+esc(siteName(l.siteId))+'</td>'+
+        '<td class="tl">'+esc(typeLabel(l.type))+((l.from||l.to)?'<br><span class="sub">'+esc(l.from||'?')+' &gt; '+esc(l.to||'?')+'</span>':'')+'</td>'+
+        '<td>'+(+l.h?fnum(l.h):'')+'</td><td>'+fkm(l.km)+'</td><td>'+fnum(roadOf(l))+'</td>'+
+        (j===0?'<td rowspan="'+n+'">'+(ig?'<span class="badge">IGD'+(ig>1?'×'+ig:'')+'</span>':'')+(pg?'<span class="badge p">petit IGD'+(pg>1?'×'+pg:'')+'</span>':'')+'</td><td rowspan="'+n+'"><button class="link" data-d="'+k+'">Modifier</button></td>':'')+
+        '</tr>';
+    });
+  });
+  rows+='<tr class="tot"><td>Total</td><td class="tl">'+t.days+' jour'+(t.days>1?'s':'')+'</td><td></td><td>'+fnum(t.h)+'</td><td>'+fkm(t.km)+'</td><td>'+fnum(t.rh)+'</td><td>'+t.igd+' IGD<br>'+t.pigd+' petit</td><td></td></tr>';
+  var any=days.some(function(k){return S.days[k]&&S.days[k].lines.some(function(l){return !isBlank(l)})});
+  var demo=Object.keys(S.days).some(function(k){return S.days[k].lines.some(function(l){return l.demo})});
+  $('#tab-semaine').innerHTML='<div class="sec">'+
+    '<div class="mnav"><button class="btn icon" data-act="sw-prev" aria-label="Semaine précédente">‹</button><h2>Semaine '+isoWeek(a)+'</h2><button class="btn icon" data-act="sw-next" aria-label="Semaine suivante">›</button></div>'+
+    '<p class="hint wkhead">du '+longDate(a)+' au '+longDate(b)+(S.agent?' · '+esc(S.agent):'')+'</p>'+
+    '<div class="stats">'+statsHtml(t)+'</div>'+
+    '<div class="tw"><table class="sem"><thead><tr><th>Jour</th><th class="tl">Chantier</th><th class="tl">Trajet</th><th>Heures</th><th>Km</th><th>H route</th><th>IGD</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<div class="actions"><button class="btn primary" data-act="sw-pdf"'+(dl?'':' disabled')+'>Télécharger cette page en PDF</button><button class="btn primary" data-act="sw-xlsx"'+(dl?'':' disabled')+'>Télécharger cette page en Excel</button><button class="btn" data-act="sw-export">Export détaillé (PDF / Excel)</button>'+
+    (any?'':'<button class="btn" data-act="sw-demo">Charger l’exemple de la semaine 41</button>')+
+    (demo?'<button class="btn" data-act="sw-clear-demo">Retirer les exemples</button>':'')+'</div><div class="msg" id="swMsg" aria-live="polite"></div></div>';
+}
+async function exportSemaineXlsx(){
+  var msg=$('#swMsg');msg.className='msg';
+  var a=semWeek,b=shiftIso(a,6),i,days=[];
+  for(i=0;i<7;i++)days.push(shiftIso(a,i));
+  var any=days.some(function(k){return S.days[k]&&S.days[k].lines.some(function(l){return !isBlank(l)})});
+  if(!any){msg.className='msg err';msg.textContent='Aucune journée saisie cette semaine.';return}
+  if(!dl){msg.className='msg err';msg.textContent='L’export n’est pas disponible dans cette vue.';return}
+  try{
+    if(!window.XLSX)throw new Error('lib');
+    var X=window.XLSX,t=tot(function(k){return k>=a&&k<=b});
+    var aoa=[['Semaine '+isoWeek(a)],['Du '+fdate(a)+' au '+fdate(b)],['Agent : '+(S.agent||'Agent non renseigné')],[],['Jour','Chantier','Trajet','Heures','Km','H route','IGD','Petit IGD']];
+    var merges=[];
+    days.forEach(function(k){
+      var e=S.days[k],lines=e?e.lines.filter(function(l){return !isBlank(l)}):[];
+      var p=parts(k),lab=JC[dow(k)]+' '+pad(p[2])+'/'+pad(p[1]);
+      if(!lines.length){aoa.push([lab,statusOf(k)?statusLabel(statusOf(k)):(dow(k)>=5?'Repos':'Pas de saisie'),'','','','','','']);return}
+      var ig=igdOf(k),pg=pigdOf(k),n=lines.length,start=aoa.length;
+      lines.forEach(function(l,j){
+        aoa.push([j===0?lab:'',siteName(l.siteId),typeLabel(l.type)+((l.from||l.to)?' : '+(l.from||'?')+' > '+(l.to||'?'):''),+l.h||'',+l.km||0,roadOf(l),j===0?ig:'',j===0?pg:'']);
+      });
+      if(n>1){[0,6,7].forEach(function(c){merges.push({s:{r:start,c:c},e:{r:start+n-1,c:c}})})}
+    });
+    aoa.push(['Total',t.days+' jour'+(t.days>1?'s':''),'',t.h,t.km,t.rh,t.igd,t.pigd]);
+    var ws=X.utils.aoa_to_sheet(aoa);
+    ws['!merges']=merges;
+    ws['!cols']=[{wch:13},{wch:26},{wch:36},{wch:9},{wch:9},{wch:9},{wch:7},{wch:10}];
+    var wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'Semaine '+isoWeek(a));
+    var out=X.write(wb,{bookType:'xlsx',type:'array'});
+    var n2=(S.agent||'agent').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')||'agent';
+    await dl.save({filename:'semaine_'+pad(isoWeek(a))+'_'+n2+'_'+a+'.xlsx',data:new Blob([out])});
+    msg.className='msg ok';msg.textContent='Fichier prêt.';
+  }catch(err){
+    msg.className='msg err';
+    if(err&&err.code==='declined')msg.textContent='Téléchargement annulé.';
+    else if(err&&err.message==='lib')msg.textContent='Le module d’export n’a pas pu se charger. Rechargez la page.';
+    else msg.textContent='Le fichier n’a pas pu être créé.';
+  }
+}
+async function exportSemainePdf(){
+  var msg=$('#swMsg');msg.className='msg';
+  var a=semWeek,b=shiftIso(a,6),i,days=[];
+  for(i=0;i<7;i++)days.push(shiftIso(a,i));
+  var any=days.some(function(k){return S.days[k]&&S.days[k].lines.some(function(l){return !isBlank(l)})});
+  if(!any){msg.className='msg err';msg.textContent='Aucune journée saisie cette semaine.';return}
+  if(!dl){msg.className='msg err';msg.textContent='L’export n’est pas disponible dans cette vue.';return}
+  try{
+    if(!(window.jspdf&&window.jspdf.jsPDF))throw new Error('lib');
+    var doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+    if(typeof doc.autoTable!=='function')throw new Error('lib');
+    var t=tot(function(k){return k>=a&&k<=b});
+    doc.setFontSize(20);doc.text('Semaine '+isoWeek(a),14,16);
+    doc.setFontSize(11);doc.text('Du '+fdate(a)+' au '+fdate(b),14,23);
+    doc.text('Agent : '+(S.agent||'Agent non renseigné'),14,29);
+    var body=[];
+    days.forEach(function(k){
+      var e=S.days[k],lines=e?e.lines.filter(function(l){return !isBlank(l)}):[];
+      var p=parts(k),lab=JC[dow(k)]+' '+pad(p[2])+'/'+pad(p[1]);
+      if(!lines.length){body.push([{content:lab,styles:{fontStyle:'bold'}},{content:statusOf(k)?statusLabel(statusOf(k)):(dow(k)>=5?'Repos':'Pas de saisie'),colSpan:6,styles:{textColor:[110,125,135]}}]);return}
+      var ig=igdOf(k),pg=pigdOf(k),n=lines.length;
+      var itxt=[ig?'IGD'+(ig>1?' x'+ig:''):'',pg?'petit IGD'+(pg>1?' x'+pg:''):''].filter(Boolean).join('\n');
+      lines.forEach(function(l,j){
+        var row=[];
+        if(j===0)row.push({content:lab,rowSpan:n,styles:{fontStyle:'bold',valign:'middle'}});
+        row.push(siteName(l.siteId));
+        row.push(typeLabel(l.type)+((l.from||l.to)?'\n'+(l.from||'?')+' > '+(l.to||'?'):''));
+        row.push(+l.h?fnum(l.h):'');row.push(fkm(l.km));row.push(fnum(roadOf(l)));
+        if(j===0)row.push({content:itxt,rowSpan:n,styles:{valign:'middle',halign:'center'}});
+        body.push(row);
+      });
+    });
+    var right={halign:'right'};
+    doc.autoTable({startY:34,head:[['Jour','Chantier','Trajet','Heures','Km','H route','IGD']],body:body,
+      foot:[['Total',t.days+' jour'+(t.days>1?'s':''),'',fnum(t.h),fkm(t.km),fnum(t.rh),t.igd+' IGD\n'+t.pigd+' petit IGD']],showFoot:'lastPage',
+      styles:{fontSize:10,cellPadding:2.2,valign:'middle'},headStyles:{fillColor:[13,34,49],textColor:255,fontStyle:'bold'},
+      footStyles:{fillColor:[225,232,236],textColor:20,fontStyle:'bold'},columnStyles:{0:{cellWidth:30},2:{cellWidth:62},3:{cellWidth:24},4:{cellWidth:24},5:{cellWidth:26},6:{cellWidth:34}},
+      didParseCell:function(d){d.cell.styles.valign='middle';if(d.column.index>=3)d.cell.styles.halign='center'}});
+    var n2=(S.agent||'agent').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')||'agent';
+    await dl.save({filename:'semaine_'+pad(isoWeek(a))+'_'+n2+'_'+a+'.pdf',data:doc.output('arraybuffer')});
+    msg.className='msg ok';msg.textContent='Fichier prêt.';
+  }catch(err){
+    msg.className='msg err';
+    if(err&&err.code==='declined')msg.textContent='Téléchargement annulé.';
+    else if(err&&err.message==='lib')msg.textContent='Le module d’export n’a pas pu se charger. Rechargez la page.';
+    else msg.textContent='Le fichier n’a pas pu être créé.';
+  }
+}
+function loadSemDemo(){
+  var mon=shiftIso(mondayOf(iso(view.y,1,4)),40*7),sid=lastSiteId(),hrs=[7,7,7,7,8];
+  hrs.forEach(function(hh,i){
+    var k=shiftIso(mon,i);
+    if(S.days[k]&&S.days[k].lines.some(function(l){return !isBlank(l)}))return;
+    S.days[k]={lines:[
+      {id:rid(),siteId:sid,type:'a',from:'Aix',to:'Cannes',h:hh,km:43,rh:null,demo:true},
+      {id:rid(),siteId:sid,type:'r',from:'Cannes',to:'Aix',h:0,km:43,rh:null,demo:true}
+    ],igd:null,pigd:null};
+  });
+  semWeek=mon;markDirty();renderSemaine();
+}
+
+/* ---------- Plongeurs (sélecteur) ---------- */
+var whoMode=null;
+function renderWho(){
+  var b=$('#whoBox');
+  if(!ROLE.admin){
+    b.innerHTML='<label for="agent">Agent</label><input id="agent" type="text" placeholder="Nom Prénom" autocomplete="name" value="'+esc(S.agent)+'">';
+    return;
+  }
+  if(whoMode){
+    b.innerHTML='<label for="whoIn">'+(whoMode==='add'?'Nouveau plongeur':whoMode==='pin'?'Nouveau PIN (4+ chiffres)':'Renommer')+'</label><input id="whoIn" type="text" placeholder="Nom Prénom" autocomplete="off" value="'+(whoMode==='rename'?esc(S.agent):'')+'"><button class="btn primary" data-who="ok">OK</button><button class="btn" data-who="cancel">Annuler</button>';
+    $('#whoIn').focus();
+    return;
+  }
+  b.innerHTML='<label for="plSel">Plongeur</label><select id="plSel">'+ROSTER.map(function(p){return '<option value="'+esc(p.id)+'"'+(p.id===CUR?' selected':'')+'>'+esc(p.name||'(sans nom)')+'</option>'}).join('')+'</select>'+
+    '<button class="btn icon" data-who="add" aria-label="Ajouter un plongeur" title="Ajouter un plongeur">+</button>'+
+    '<button class="btn icon" data-who="rename" aria-label="Renommer ce plongeur" title="Renommer ce plongeur">✎</button>'+(CUR!=='chef'?'<button class="btn icon" data-who="pin" aria-label="Définir le code PIN" title="Définir le code PIN de ce plongeur">🔑</button>':'');
+}
+async function switchTo(pid){
+  await flushNow();
+  CUR=pid;try{localStorage.setItem('carnet-cur',pid)}catch(e){}
+  if(!ALL[pid]){ALL[pid]=await Store.loadDays(pid);snapYears(pid)}
+  S.days=ALL[pid];S.agent=nameOf(pid);
+  renderWho();
+  showTab(view.tab);
+}
+async function addPlongeur(name){
+  var pid='p'+rid();
+  try{await Store.saveRoster({id:pid,name:name})}catch(e){setSave('Échec de l’enregistrement');return}
+  ROSTER.push({id:pid,name:name});sortRoster();saved.name[pid]=name;ALL[pid]={};snapYears(pid);
+  await switchTo(pid);
+}
+async function removePlongeur(pid){
+  await flushNow();
+  try{await Store.delPlongeur(pid)}catch(e){setSave('Échec de la suppression');return}
+  ROSTER=ROSTER.filter(function(p){return p.id!==pid});
+  delete ALL[pid];delete saved.name[pid];
+  Object.keys(saved.years).forEach(function(k){if(k.indexOf(pid+'|')===0)delete saved.years[k]});
+  if(!ROSTER.length){ROSTER.push({id:ROLE.uid,name:''});ALL[ROLE.uid]={}}
+  if(CUR===pid){await switchTo(ROSTER[0].id)}else{renderWho();renderEquipe()}
+}
+
+/* ---------- Équipe : feuille de chantier ---------- */
+var eq={week:mondayOf(TODAY),site:'all'};
+function sumLines(ls){return ls.reduce(function(t,l){t.h+=l.h;t.km+=l.km;t.rh+=l.rh;t.igd+=l.igd;t.pigd+=l.pigd;return t},{h:0,km:0,rh:0,igd:0,pigd:0})}
+function tripText(l){return typeLabel(l.type)+((l.from||l.to)?'\n'+(l.from||'?')+' > '+(l.to||'?'):'')}
+function weekAgg(a,b){
+  var res={},days7=[],i;
+  for(i=0;i<7;i++)days7.push(shiftIso(a,i));
+  ROSTER.forEach(function(p){
+    withDays(p.id,function(){
+      days7.forEach(function(k){
+        var e=S.days[k];if(!e)return;
+        var lines=e.lines.filter(function(l){return !isBlank(l)});if(!lines.length)return;
+        var ig=igdOf(k),pg=pigdOf(k);
+        lines.forEach(function(l,j){
+          var o=res[l.siteId]||(res[l.siteId]={});
+          var q=o[p.id]||(o[p.id]={name:p.name||'(sans nom)',lines:[]});
+          q.lines.push({date:k,type:l.type,from:l.from||'',to:l.to||'',h:+l.h||0,km:+l.km||0,rh:roadOf(l),igd:j===0?ig:0,pigd:j===0?pg:0});
+        });
+      });
+    });
+  });
+  return res;
+}
+function eqList(agg){
+  var out=[];
+  S.folders.forEach(function(f){
+    S.sites.filter(function(s){return s.folderId===f.id&&(eq.site==='all'?agg[s.id]:s.id===eq.site)}).forEach(function(s){out.push({f:f,s:s})});
+  });
+  return out;
+}
+function eqTitle(x,sep){return x.f.name.trim().toLowerCase()===x.s.name.trim().toLowerCase()?x.s.name:x.f.name+sep+x.s.name}
+function sortedPids(pls){return Object.keys(pls).sort(function(a,b){return pls[a].name.localeCompare(pls[b].name)})}
+function renderEquipe(){
+  var box=$('#tab-equipe');
+  if(!ROLE.admin){box.innerHTML='<div class="empty-note">Cette page est réservée au responsable.</div>';return}
+  var a=eq.week,b=shiftIso(a,6),agg=weekAgg(a,b),list=eqList(agg),days7=[],i;
+  for(i=0;i<7;i++)days7.push(shiftIso(a,i));
+  var opts='<option value="all"'+(eq.site==='all'?' selected':'')+'>Tous les chantiers</option>'+S.folders.map(function(f){
+    var ss=S.sites.filter(function(s){return s.folderId===f.id});if(!ss.length)return '';
+    return '<optgroup label="'+esc(f.name)+'">'+ss.map(function(s){return '<option value="'+s.id+'"'+(s.id===eq.site?' selected':'')+'>'+esc(s.name)+'</option>'}).join('')+'</optgroup>';
+  }).join('');
+  var h='<div class="sec"><div class="mnav"><button class="btn icon" data-eq="prev" aria-label="Semaine précédente">‹</button><h2>Équipe · semaine '+isoWeek(a)+'</h2><button class="btn icon" data-eq="next" aria-label="Semaine suivante">›</button></div>'+
+    '<p class="hint wkhead">du '+longDate(a)+' au '+longDate(b)+'</p>'+
+    '<div class="panel" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end"><label class="f" style="flex:1;min-width:220px"><span class="l">Chantier</span><select id="eqSite">'+opts+'</select></label>'+
+    '<button class="btn primary" data-eq="pdf"'+(dl?'':' disabled')+'>Feuille en PDF</button><button class="btn primary" data-eq="xlsx"'+(dl?'':' disabled')+'>Feuille en Excel</button><button class="btn" data-eq="refresh">Actualiser</button></div>'+
+    '<div class="msg" id="eqMsg" aria-live="polite"></div>';
+  var shown=0;
+  list.forEach(function(x){
+    var pls=agg[x.s.id]||{},pids=sortedPids(pls);
+    h+='<div class="sec"><h3>'+esc(eqTitle(x,' › '))+'</h3>';
+    if(!pids.length){h+='<p class="hint">Aucune saisie cette semaine sur ce chantier.</p></div>';return}
+    shown++;
+    var head='<th>Plongeur</th>'+days7.map(function(k){var p=parts(k);return '<th>'+JC[dow(k)].replace('.','')+'<br><span class="sub">'+pad(p[2])+'/'+pad(p[1])+'</span></th>'}).join('')+'<th>Heures</th><th>Km</th><th>H route</th><th>IGD</th><th>Petit IGD</th>';
+    var rows='',all=[];
+    pids.forEach(function(pid){
+      var q=pls[pid],byDay={};
+      q.lines.forEach(function(l){byDay[l.date]=(byDay[l.date]||0)+l.h;all.push(l)});
+      var s=sumLines(q.lines);
+      rows+='<tr><td><button class="link" data-pl="'+esc(pid)+'">'+esc(q.name)+'</button></td>'+days7.map(function(k){return '<td>'+(byDay[k]?fnum(byDay[k]):'')+'</td>'}).join('')+'<td><b>'+fnum(s.h)+'</b></td><td>'+fkm(s.km)+'</td><td>'+fnum(s.rh)+'</td><td>'+s.igd+'</td><td>'+s.pigd+'</td></tr>';
+    });
+    var t=sumLines(all),dayTot=days7.map(function(k){var n=0;all.forEach(function(l){if(l.date===k)n+=l.h});return n});
+    rows+='<tr class="tot"><td>Total chantier</td>'+dayTot.map(function(n){return '<td>'+(n?fnum(n):'')+'</td>'}).join('')+'<td>'+fnum(t.h)+'</td><td>'+fkm(t.km)+'</td><td>'+fnum(t.rh)+'</td><td>'+t.igd+'</td><td>'+t.pigd+'</td></tr>';
+    h+='<div class="tw"><table class="eq"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  });
+  if(!list.length)h+='<div class="empty-note">Aucune saisie cette semaine. Choisissez un plongeur dans l’en-tête, puis remplissez sa semaine : elle apparaîtra ici, classée par dossier et par chantier.</div>';
+  h+='<div class="sec"><h3>Plongeurs</h3><div class="tw"><table class="eq"><tbody>'+ROSTER.map(function(p){return '<tr><td>'+esc(p.name||'(sans nom)')+'</td><td><button class="link danger" data-eq="del" data-pid="'+esc(p.id)+'">Retirer</button></td></tr>'}).join('')+'</tbody></table></div><p class="hint">Retirer un plongeur supprime aussi toutes ses saisies.</p></div></div>';
+  box.innerHTML=h;
+}
+function eqMatrix(x,agg,days7){
+  var pls=agg[x.s.id]||{},all=[],rows=[];
+  sortedPids(pls).forEach(function(pid){
+    var q=pls[pid],byDay={};
+    q.lines.forEach(function(l){byDay[l.date]=(byDay[l.date]||0)+l.h;all.push(l)});
+    var s=sumLines(q.lines);
+    rows.push([q.name].concat(days7.map(function(k){return byDay[k]||''}),[s.h,s.km,s.rh,s.igd,s.pigd]));
+  });
+  var t=sumLines(all);
+  var tot=['Total chantier'].concat(days7.map(function(k){var n=0;all.forEach(function(l){if(l.date===k)n+=l.h});return n||''}),[t.h,t.km,t.rh,t.igd,t.pigd]);
+  return {rows:rows,total:tot};
+}
+async function exportEquipe(kind){
+  var msg=$('#eqMsg');msg.className='msg';
+  var a=eq.week,b=shiftIso(a,6),agg=weekAgg(a,b),days7=[],i;
+  for(i=0;i<7;i++)days7.push(shiftIso(a,i));
+  var list=eqList(agg).filter(function(x){return agg[x.s.id]&&Object.keys(agg[x.s.id]).length});
+  if(!list.length){msg.className='msg err';msg.textContent='Aucune saisie à exporter cette semaine.';return}
+  if(!dl){msg.className='msg err';msg.textContent='L’export n’est pas disponible dans cette vue.';return}
+  var scope=eq.site==='all'?'Tous les chantiers':'Chantier : '+(siteById(eq.site)?siteById(eq.site).name:'');
+  var slug=function(s){return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')};
+  var base='equipe_S'+pad(isoWeek(a))+'_'+a+(eq.site==='all'?'':'_'+slug(siteName(eq.site)));
+  var tail=['Heures','Km','H route','IGD','Petit IGD'];
+  try{
+    if(kind==='pdf'){
+      if(!(window.jspdf&&window.jspdf.jsPDF))throw new Error('lib');
+      var doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+      if(typeof doc.autoTable!=='function')throw new Error('lib');
+      doc.setFontSize(20);doc.text('Équipe - semaine '+isoWeek(a),14,16);
+      doc.setFontSize(11);doc.text('Du '+fdate(a)+' au '+fdate(b),14,23);doc.text(scope,14,29);
+      var head=['Plongeur'].concat(days7.map(function(k){return JC[dow(k)].replace('.','')+'\n'+fdate(k).slice(0,5)}),tail);
+      var fmt=function(r){return r.map(function(c,j){return j===0?c:(c===''?'':(j===9?fkm(c):fnum(c)))})};
+      var y=38;
+      list.forEach(function(x){
+        var m=eqMatrix(x,agg,days7);
+        if(y>150){doc.addPage();y=16}
+        doc.setFontSize(13);doc.text(eqTitle(x,'  >  '),14,y);
+        var cs={0:{cellWidth:46}};for(var c=1;c<=7;c++)cs[c]={cellWidth:16};cs[8]={cellWidth:20};cs[9]={cellWidth:18};cs[10]={cellWidth:20};cs[11]={cellWidth:16};cs[12]={cellWidth:22};
+        doc.autoTable({startY:y+3,head:[head],body:m.rows.map(fmt),foot:[fmt(m.total)],showFoot:'lastPage',
+          styles:{fontSize:9.5,cellPadding:2,valign:'middle'},headStyles:{fillColor:[13,34,49],textColor:255,fontStyle:'bold'},
+          footStyles:{fillColor:[225,232,236],textColor:20,fontStyle:'bold'},columnStyles:cs,
+          didParseCell:function(d){d.cell.styles.valign='middle';if(d.column.index>=1)d.cell.styles.halign='center'}});
+        y=doc.lastAutoTable.finalY+12;
+      });
+      await dl.save({filename:base+'.pdf',data:doc.output('arraybuffer')});
+    }else{
+      if(!window.XLSX)throw new Error('lib');
+      var X=window.XLSX;
+      var headX=['Plongeur'].concat(days7.map(function(k){return JC[dow(k)].replace('.','')+' '+fdate(k).slice(0,5)}),tail);
+      var aoa=[['Équipe - semaine '+isoWeek(a)],['Du '+fdate(a)+' au '+fdate(b)],[scope],[]];
+      list.forEach(function(x){
+        var m=eqMatrix(x,agg,days7);
+        aoa.push([eqTitle(x,' > ')]);aoa.push(headX);
+        m.rows.forEach(function(r){aoa.push(r)});
+        aoa.push(m.total);aoa.push([]);
+      });
+      var ws=X.utils.aoa_to_sheet(aoa);
+      ws['!cols']=[{wch:26},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:9},{wch:9},{wch:9},{wch:7},{wch:10}];
+      var wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'Semaine '+isoWeek(a));
+      await dl.save({filename:base+'.xlsx',data:new Blob([X.write(wb,{bookType:'xlsx',type:'array'})])});
+    }
+    msg.className='msg ok';msg.textContent='Fichier prêt.';
+  }catch(err){
+    msg.className='msg err';
+    if(err&&err.code==='declined')msg.textContent='Téléchargement annulé.';
+    else if(err&&err.message==='lib')msg.textContent='Le module d’export n’a pas pu se charger. Rechargez la page.';
+    else msg.textContent='Le fichier n’a pas pu être créé.';
+  }
+}
+
+/* ---------- Navigation ---------- */
+function showTab(t){
+  view.tab=t;
+  $$('.tabs button').forEach(function(b){b.setAttribute('aria-selected',String(b.dataset.tab===t))});
+  ['saisie','semaine','equipe','recap','sites','export'].forEach(function(n){$('#tab-'+n).hidden=n!==t});
+  if(t==='saisie'){ensureDay(view.sel);renderCal();renderEditor()}
+  else{prune(null);if(t==='semaine')renderSemaine();if(t==='equipe')renderEquipe();if(t==='recap')renderRecap();if(t==='sites')renderSites();if(t==='export')renderExport()}
+}
+function changeYear(d){
+  view.y+=d;
+  if(view.tab==='saisie'){var p=parts(view.sel);var dd=Math.min(p[2],new Date(Date.UTC(view.y,p[1],0)).getUTCDate());select(iso(view.y,p[1],dd))}
+  else{if(view.tab==='semaine')semWeek=mondayOf(shiftIso(semWeek,d*364));showTab(view.tab)}
+  $('#yLabel').textContent=view.y;
+}
+function changeMonth(d){
+  var m=view.m+d,y=view.y;if(m<1){m=12;y--}if(m>12){m=1;y++}
+  var dd=Math.min(parts(view.sel)[2],new Date(Date.UTC(y,m,0)).getUTCDate());
+  select(iso(y,m,dd));
+}
+
+/* ---------- Événements ---------- */
+$('.tabs').addEventListener('click',function(e){var b=e.target.closest('button[data-tab]');if(b)showTab(b.dataset.tab)});
+$('#yPrev').addEventListener('click',function(){changeYear(-1)});
+$('#yNext').addEventListener('click',function(){changeYear(1)});
+$('#mPrev').addEventListener('click',function(){changeMonth(-1)});
+$('#mNext').addEventListener('click',function(){changeMonth(1)});
+$('#cal').addEventListener('click',function(e){var b=e.target.closest('button[data-d]');if(b)select(b.dataset.d)});
+$('#goWeek').addEventListener('click',function(){expKind='week';expWeek=mondayOf(view.sel);showTab('export')});
+
+var ed=$('#editor');
+function curLine(el){var li=el.closest('.line');return li?S.days[view.sel].lines.find(function(l){return l.id===li.dataset.id}):null}
+ed.addEventListener('input',function(e){
+  var t=e.target,k=view.sel,en=S.days[k];if(!en)return;
+  if(t.id==='igdIn'){en.igd=t.value===''?null:Math.max(0,Math.round(num(t.value)));refresh();return}
+  if(t.id==='pigdIn'){en.pigd=t.value===''?null:Math.max(0,Math.round(num(t.value)));refresh();return}
+  var l=curLine(t),f=t.dataset.f;if(!l||!f)return;
+  if(f==='h')l.h=Math.min(24,num(t.value));
+  else if(f==='km')l.km=num(t.value);
+  else if(f==='rh')l.rh=t.value===''?null:num(t.value);
+  else if(f==='from'||f==='to'){l[f]=t.value;var a2=$('[data-maplink]',t.closest('.line')),hr=mapHref(l);a2.href=hr||'#';a2.hidden=!hr;markDirty();return}
+  refresh();
+});
+ed.addEventListener('change',function(e){
+  var t=e.target,l=curLine(t),f=t.dataset.f;
+  if(t.id==='dayStatus'){var en0=S.days[view.sel];if(!en0)return;var v0=t.value;en0.status=v0||null;if(v0){en0.lines=[newLine()];en0.igd=null;en0.pigd=null}markDirty();renderCal();renderEditor();return}
+  if(l&&(f==='siteId'||f==='type')){l[f]=t.value;markDirty();if(f==='siteId')renderCal()}
+  if((t.id==='igdIn'||t.id==='pigdIn')&&t.value===''){syncEditor()}
+});
+ed.addEventListener('click',function(e){
+  var g=e.target.closest('[data-go]');if(g){select(g.dataset.go);return}
+  var b=e.target.closest('[data-act]');if(!b)return;
+  var k=view.sel,en=S.days[k],a=b.dataset.act;
+  if(a==='add-line'){en.lines.push(newLine());markDirty();renderEditor();var ls=$$('#editor .line');var last=ls[ls.length-1];if(last)$('[data-f=h]',last).focus()}
+  else if(a==='del-line'){var l=curLine(b);en.lines=en.lines.filter(function(x){return x!==l});if(!en.lines.length)en.lines.push(newLine());markDirty();renderCal();renderEditor()}
+  else if(a==='rh-auto'){var l2=curLine(b);l2.rh=null;refresh();var ri=$('[data-f=rh]',b.closest('.line'));ri.value=roadOf(l2)}
+  else if(a==='igd-auto'){en.igd=null;refresh();$('#igdIn').value=igdOf(k)}
+  else if(a==='pigd-auto'){en.pigd=null;refresh();$('#pigdIn').value=pigdOf(k)}
+  else if(a==='copy-prev'){
+    var pe=S.days[prevIso(k)];if(!pe)return;
+    en.lines=en.lines.filter(function(x){return !isBlank(x)}).concat(pe.lines.filter(function(x){return !isBlank(x)}).map(function(x){return {id:rid(),siteId:x.siteId,type:x.type,from:x.from||'',to:x.to||'',h:x.h,km:x.km,rh:x.rh,demo:false}}));
+    markDirty();renderCal();renderEditor();
+  }
+  else if(a==='rename-site'){
+    var l3=curLine(b),s3=l3&&siteById(l3.siteId);if(!s3)return;
+    var box=b.parentNode;box.className='addrow';box.style.margin='0';
+    box.innerHTML='<input type="text" id="rn-'+s3.id+'" value="'+esc(s3.name)+'" aria-label="Nouveau nom du chantier"><button class="btn primary" data-act="rename-ok" data-sid="'+s3.id+'">OK</button>';
+    var ri3=$('#rn-'+s3.id);ri3.focus();ri3.select();
+  }
+  else if(a==='rename-ok'){
+    var s4=siteById(b.dataset.sid),v4=$('#rn-'+b.dataset.sid).value.trim();
+    if(s4&&v4){s4.name=v4;markDirty();renderEditor()}
+  }
+  else if(a==='clear-day'){armed(b,'Confirmer : tout effacer',function(){delete S.days[k];ensureDay(k);markDirty();renderCal();renderEditor()})}
+});
+
+var tsx=null,tsy=null;
+ed.addEventListener('touchstart',function(e){var t=e.touches[0];tsx=t.clientX;tsy=t.clientY},{passive:true});
+ed.addEventListener('touchend',function(e){
+  if(tsx==null)return;var t=e.changedTouches[0],dx=t.clientX-tsx,dy=t.clientY-tsy;tsx=null;
+  if(Math.abs(dx)>70&&Math.abs(dy)<40&&!e.target.closest('input,select,textarea'))select(shiftIso(view.sel,dx<0?1:-1));
+},{passive:true});
+$('#tab-recap').addEventListener('click',function(e){
+  var b=e.target.closest('[data-act]');if(!b)return;
+  if(b.dataset.act==='demo')loadDemo();
+  if(b.dataset.act==='clear-demo')clearDemo();
+});
+var st=$('#tab-sites');
+st.addEventListener('change',function(e){
+  var t=e.target;
+  if(t.dataset.fname){var f=folderById(t.dataset.fname);var v=t.value.trim();if(f&&v){f.name=v;markDirty();renderSites('Dossier renommé.','ok')}else renderSites('Le nom du dossier ne peut pas être vide.','err')}
+  else if(t.dataset.sname){var s=siteById(t.dataset.sname);var v2=t.value.trim();if(s&&v2){s.name=v2;markDirty();renderSites('Chantier renommé.','ok')}else renderSites('Le nom du chantier ne peut pas être vide.','err')}
+  else if(t.dataset.smove){var s2=siteById(t.dataset.smove);if(s2){s2.folderId=t.value;markDirty();renderSites('Chantier déplacé.','ok')}}
+});
+st.addEventListener('click',function(e){
+  var b=e.target.closest('[data-act]');if(!b)return;var a=b.dataset.act;
+  if(a==='add-folder'){var n=$('#newfolder').value.trim();if(!n){renderSites('Saisissez un nom de dossier.','err');return}S.folders.push({id:'f'+rid(),name:n});markDirty();renderSites('Dossier créé.','ok')}
+  else if(a==='add-site'){var inp=$('#newsite-'+b.dataset.fid);var nm=inp.value.trim();if(!nm){renderSites('Saisissez un nom de chantier.','err');return}S.sites.push({id:'s'+rid(),folderId:b.dataset.fid,name:nm});markDirty();renderSites('Chantier ajouté.','ok')}
+  else if(a==='del-site'){var n2=siteUses(b.dataset.sid);if(n2){renderSites('Ce chantier est utilisé dans '+n2+' ligne'+(n2>1?'s':'')+' de saisie. Retirez-les avant de le supprimer.','err');return}
+    armed(b,'Sûr ?',function(){S.sites=S.sites.filter(function(s){return s.id!==b.dataset.sid});markDirty();renderSites('Chantier supprimé.','ok')})}
+  else if(a==='del-folder'){var fid=b.dataset.fid;if(S.sites.some(function(s){return s.folderId===fid})){renderSites('Déplacez ou supprimez d’abord les chantiers de ce dossier.','err');return}
+    if(S.folders.length<2){renderSites('Gardez au moins un dossier.','err');return}
+    armed(b,'Sûr ?',function(){S.folders=S.folders.filter(function(f){return f.id!==fid});markDirty();renderSites('Dossier supprimé.','ok')})}
+});
+var xt=$('#tab-export');
+xt.addEventListener('change',function(e){
+  if(e.target.id==='expKind'){expKind=e.target.value;renderExport()}
+  if(e.target.id==='expMonth'){expMonth=+e.target.value;renderExport()}
+});
+xt.addEventListener('click',function(e){
+  var b=e.target.closest('[data-act]');if(!b)return;var a=b.dataset.act;
+  if(a==='x-xlsx')exportFile('xlsx');
+  if(a==='x-pdf')exportFile('pdf');
+  if(a==='wk-prev'){expWeek=shiftIso(expWeek,-7);renderExport()}
+  if(a==='wk-next'){expWeek=shiftIso(expWeek,7);renderExport()}
+});
+
+var sw=$('#tab-semaine');
+sw.addEventListener('click',function(e){
+  var d=e.target.closest('[data-d]');
+  if(d){select(d.dataset.d);showTab('saisie');return}
+  var b=e.target.closest('[data-act]');if(!b)return;var a=b.dataset.act;
+  if(a==='sw-prev'||a==='sw-next'){semWeek=shiftIso(semWeek,a==='sw-prev'?-7:7);view.y=parts(shiftIso(semWeek,3))[0];$('#yLabel').textContent=view.y;renderSemaine()}
+  else if(a==='sw-pdf'){exportSemainePdf()}
+  else if(a==='sw-xlsx'){exportSemaineXlsx()}
+  else if(a==='sw-export'){expKind='week';expWeek=semWeek;showTab('export')}
+  else if(a==='sw-demo'){loadSemDemo();view.y=parts(shiftIso(semWeek,3))[0];$('#yLabel').textContent=view.y}
+  else if(a==='sw-clear-demo'){clearDemo();renderSemaine()}
+});
+
+/* ---------- Démarrage ---------- */
+var whoBox=$('#whoBox');
+whoBox.addEventListener('input',function(e){
+  if(e.target.id==='agent'){S.agent=e.target.value;var r=ROSTER.find(function(x){return x.id===CUR});if(r)r.name=S.agent;markDirty()}
+});
+whoBox.addEventListener('change',function(e){if(e.target.id==='plSel'){switchTo(e.target.value)}});
+whoBox.addEventListener('keydown',function(e){
+  if(e.target.id==='whoIn'&&e.key==='Enter'){var ok=$('[data-who=ok]',whoBox);if(ok)ok.click()}
+  if(e.target.id==='whoIn'&&e.key==='Escape'){whoMode=null;renderWho()}
+});
+whoBox.addEventListener('click',async function(e){
+  var b=e.target.closest('[data-who]');if(!b)return;var a=b.dataset.who;
+  if(a==='add'||a==='rename'||a==='pin'){whoMode=a;renderWho()}
+  else if(a==='cancel'){whoMode=null;renderWho()}
+  else if(a==='ok'){
+    var v=$('#whoIn').value.trim();if(!v)return;
+    var mode=whoMode;whoMode=null;
+    if(mode==='pin'){try{await Store.setPin(CUR,v);setSave('PIN enregistr\u00e9')}catch(err){setSave('PIN refus\u00e9 (4 caract\u00e8res min.)')}renderWho()}
+    else if(mode==='add'){await addPlongeur(v)}
+    else{var r=ROSTER.find(function(x){return x.id===CUR});if(r)r.name=v;S.agent=v;sortRoster();renderWho();markDirty()}
+  }
+});
+var eqt=$('#tab-equipe');
+eqt.addEventListener('click',async function(e){
+  var pl=e.target.closest('[data-pl]');
+  if(pl){semWeek=eq.week;await switchTo(pl.dataset.pl);showTab('semaine');return}
+  var b=e.target.closest('[data-eq]');if(!b)return;var a=b.dataset.eq;
+  if(a==='prev'||a==='next'){eq.week=shiftIso(eq.week,a==='prev'?-7:7);renderEquipe()}
+  else if(a==='refresh'){b.disabled=true;await flushNow();try{await bootstrap(DB0)}catch(err){}renderWho();renderEquipe()}
+  else if(a==='pdf'){exportEquipe('pdf')}
+  else if(a==='xlsx'){exportEquipe('xlsx')}
+  else if(a==='del'){var pid=b.dataset.pid;armed(b,'Confirmer la suppression',function(){removePlongeur(pid)})}
+});
+eqt.addEventListener('change',function(e){if(e.target.id==='eqSite'){eq.site=e.target.value;renderEquipe()}});
+
+async function start(){
+  document.body.classList.add('loading');
+  S=defaults();showTab('saisie');
+  await loadStore();
+  document.body.classList.remove('loading');
+  $('[data-tab=equipe]').hidden=!ROLE.admin;
+  renderWho();
+  setSave(Store&&Store.kind==='cloud'?'Enregistré':'Sur cet appareil');
+  showTab(view.tab);
+  if(pendingMigrate)markDirty();
+}
+$('#logout').addEventListener('click',async function(){
+  try{await flushNow()}catch(e){}
+  try{localStorage.removeItem('rh-session');localStorage.removeItem('carnet-cur')}catch(e){}
+  location.reload();
+});
+start();
+})();
+</script>
