@@ -181,6 +181,11 @@ table.eq td:first-child,table.eq th:first-child{text-align:left}
 .ltabs{display:flex;gap:4px}
 .ltabs button{flex:1;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:8px 4px;min-height:40px;cursor:pointer;font-size:13px;color:var(--ink)}
 .ltabs button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.lhint{margin:0;font-size:14px;color:var(--muted)}
+.lcard .link{align-self:flex-start}
+.pinbox{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.pinbox label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);flex:1;min-width:140px}
+.pinbox[hidden]{display:none}
 .lmsg{min-height:1.3em;margin:0;color:#B3261E;font-size:13px}
 
 @media (max-width:640px){
@@ -225,9 +230,11 @@ table.eq td:first-child,table.eq th:first-child{text-align:left}
       <div class="who" id="whoBox"></div>
       <div class="stepper"><button class="btn icon" id="yPrev" aria-label="Année précédente">‹</button><strong id="yLabel" class="num"></strong><button class="btn icon" id="yNext" aria-label="Année suivante">›</button></div>
       <span class="savestate" id="saveState" aria-live="polite"></span>
+      <button class="btn" id="pinBtn" hidden>Mon PIN</button>
       <button class="btn" id="logout">Quitter</button>
     </div>
   </header>
+  <form class="pinbox" id="pinBox" hidden></form>
 
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="saisie" aria-selected="true">Saisie</button>
@@ -507,10 +514,11 @@ function loginScreen(msg){
     function draw(){
       var tabs='<div class="ltabs"><button data-m="in" class="'+(mode==='in'?'on':'')+'">Me connecter</button><button data-m="new" class="'+(mode==='new'?'on':'')+'">Première fois</button><button data-m="chef" class="'+(mode==='chef'?'on':'')+'">Responsable</button></div>';
       var f='';
-      if(mode==='in')f='<label>Votre nom<select id="lName">'+names.map(function(n){return '<option value="'+esc(n.id)+'">'+esc(n.name||'(sans nom)')+'</option>'}).join('')+'</select></label><label>Code PIN<input id="lPin" type="password" inputmode="numeric" autocomplete="current-password"></label>';
+      if(mode==='in')f='<label>Votre nom<select id="lName">'+names.map(function(n){return '<option value="'+esc(n.id)+'">'+esc(n.name||'(sans nom)')+'</option>'}).join('')+'</select></label><label>Code PIN<input id="lPin" type="password" inputmode="numeric" autocomplete="current-password"></label><button type="button" class="link" data-m="reset">PIN oublié ?</button>';
+      if(mode==='reset')f='<p class="lhint">Entrez votre nom, le code responsable et un nouveau PIN.</p><label>Votre nom<select id="lName">'+names.map(function(n){return '<option value="'+esc(n.id)+'">'+esc(n.name||'(sans nom)')+'</option>'}).join('')+'</select></label><label>Code responsable<input id="lChef" type="password" autocomplete="off"></label><label>Nouveau PIN (4 chiffres ou plus)<input id="lPin" type="password" inputmode="numeric" autocomplete="new-password"></label>';
       if(mode==='new')f='<label>Nom Prénom<input id="lNew" type="text" autocomplete="name"></label><label>Code équipe (donné par le responsable)<input id="lTeam" type="text" autocapitalize="characters" autocomplete="off"></label><label>Choisissez un code PIN (4 chiffres ou plus)<input id="lPin" type="password" inputmode="numeric" autocomplete="new-password"></label>';
       if(mode==='chef')f='<label>Code responsable<input id="lPin" type="password" autocomplete="current-password"></label>';
-      box.innerHTML='<form class="lcard" id="lForm"><h2>Relever d’heure</h2>'+tabs+f+'<p class="lmsg" id="lMsg">'+esc(note)+'</p><button class="btn primary" type="submit">'+(mode==='new'?'Créer mon accès':'Entrer')+'</button></form>';
+      box.innerHTML='<form class="lcard" id="lForm"><h2>Relever d’heure</h2>'+tabs+f+'<p class="lmsg" id="lMsg">'+esc(note)+'</p><button class="btn primary" type="submit">'+(mode==='new'?'Créer mon accès':mode==='reset'?'Changer mon PIN':'Entrer')+'</button></form>';
       box.hidden=false;
     }
     box.onclick=function(e){var b=e.target.closest('[data-m]');if(b){mode=b.dataset.m;note='';draw()}};
@@ -522,6 +530,11 @@ function loginScreen(msg){
         var uid=null;
         if(mode==='chef'){uid='chef'}
         else if(mode==='in'){uid=$('#lName',box).value}
+        else if(mode==='reset'){
+          uid=$('#lName',box).value;
+          if(pin.length<4)throw new Error('input');
+          await rpc('rh_reset_pin',{p_pid:uid,p_chef_code:($('#lChef',box).value||'').trim(),p_new:pin});
+        }
         else{
           var nm=$('#lNew',box).value.trim(),tm=$('#lTeam',box).value.trim();
           if(nm.length<2||pin.length<4)throw new Error('input');
@@ -532,7 +545,7 @@ function loginScreen(msg){
         box.hidden=true;box.innerHTML='';resolve({uid:uid,pin:pin});
       }catch(err){
         var s=String(err&&err.message||'');
-        m.textContent=s.indexOf('team_code')>=0?'Code équipe incorrect.':(s==='Error: input'||s==='input'||s.indexOf('bad_input')>=0)?'Nom (2 lettres min.) et PIN (4 min.) requis.':'Connexion impossible. Réessayez.';
+        m.textContent=(mode==='reset'&&s.indexOf('auth')>=0)?'Code responsable incorrect.':s.indexOf('team_code')>=0?'Code équipe incorrect.':(s==='Error: input'||s==='input'||s.indexOf('bad_input')>=0)?'Nom (2 lettres min.) et PIN (4 min.) requis.':'Connexion impossible. Réessayez.';
         btn.disabled=false;
       }
     };
@@ -1413,11 +1426,29 @@ async function start(){
   await loadStore();
   document.body.classList.remove('loading');
   $('[data-tab=equipe]').hidden=!ROLE.admin;
+  $('#pinBtn').hidden=(AUTH&&AUTH.uid==='chef');
   renderWho();
   setSave(Store&&Store.kind==='cloud'?'Enregistré':'Sur cet appareil');
   showTab(view.tab);
   if(pendingMigrate)markDirty();
 }
+var pinBox=$('#pinBox');
+$('#pinBtn').addEventListener('click',function(){
+  if(!pinBox.hidden){pinBox.hidden=true;return}
+  pinBox.innerHTML='<label>Ancien PIN<input id="pOld" type="password" inputmode="numeric" autocomplete="current-password"></label><label>Nouveau PIN (4+)<input id="pNew" type="password" inputmode="numeric" autocomplete="new-password"></label><button class="btn primary" type="submit">Changer mon PIN</button><button class="btn" type="button" id="pCancel">Annuler</button><span class="msg" id="pMsg" style="flex-basis:100%"></span>';
+  pinBox.hidden=false;$('#pOld').focus();
+});
+pinBox.addEventListener('click',function(e){if(e.target.id==='pCancel')pinBox.hidden=true});
+pinBox.addEventListener('submit',async function(e){
+  e.preventDefault();
+  var o=$('#pOld').value.trim(),n=$('#pNew').value.trim(),m=$('#pMsg');
+  if(n.length<4){m.className='msg err';m.textContent='Le nouveau PIN doit avoir 4 caractères minimum.';return}
+  try{
+    await rpc('rh_change_pin',{p_uid:AUTH.uid,p_pin:o,p_new:n});
+    AUTH.pin=n;try{localStorage.setItem('rh-session',JSON.stringify(AUTH))}catch(er){}
+    m.className='msg ok';m.textContent='PIN modifié.';setTimeout(function(){pinBox.hidden=true},1200);
+  }catch(err){m.className='msg err';m.textContent=String(err&&err.message||'').indexOf('auth')>=0?'Ancien PIN incorrect.':'Connexion impossible. Réessayez.'}
+});
 $('#logout').addEventListener('click',async function(){
   try{await flushNow()}catch(e){}
   try{localStorage.removeItem('rh-session');localStorage.removeItem('carnet-cur')}catch(e){}
