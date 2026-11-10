@@ -1221,7 +1221,7 @@ function eqTitle(x,sep){return x.f.name.trim().toLowerCase()===x.s.name.trim().t
 function sortedPids(pls){return Object.keys(pls).sort(function(a,b){return pls[a].name.localeCompare(pls[b].name)})}
 function renderEquipe(){
   var box=$('#tab-equipe');
-  var a=eq.week,b=shiftIso(a,6),agg=weekAgg(a,b),list=eqList(agg),days7=[],i;
+  var a=eq.week,b=shiftIso(a,6),agg=weekAgg(a,b),list=eqBlocks(agg),days7=[],i;
   for(i=0;i<7;i++)days7.push(shiftIso(a,i));
   var opts='<option value="all"'+(eq.site==='all'?' selected':'')+'>Tous les chantiers</option>'+S.folders.map(function(f){
     var ss=S.sites.filter(function(s){return s.folderId===f.id});if(!ss.length)return '';
@@ -1232,12 +1232,9 @@ function renderEquipe(){
     '<div class="panel" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end"><label class="f" style="flex:1;min-width:220px"><span class="l">Chantier</span><select id="eqSite">'+opts+'</select></label>'+
     '<button class="btn primary" data-eq="pdf"'+(dl?'':' disabled')+'>Feuille en PDF</button><button class="btn primary" data-eq="xlsx"'+(dl?'':' disabled')+'>Feuille en Excel</button><button class="btn primary" data-eq="img"'+(dl?'':' disabled')+'>Image à envoyer par mail</button><button class="btn" data-eq="refresh">Actualiser</button></div>'+
     '<div class="msg" id="eqMsg" aria-live="polite"></div>';
-  var shown=0;
   list.forEach(function(x){
-    var pls=agg[x.s.id]||{},pids=sortedPids(pls);
-    h+='<div class="sec"><h3>'+esc(eqTitle(x,' › '))+'</h3>';
-    if(!pids.length){h+='<p class="hint">Aucune saisie cette semaine sur ce chantier.</p></div>';return}
-    shown++;
+    var pls=x.pls,pids=sortedPids(pls);
+    h+='<div class="sec"><h3>'+esc(x.title)+'</h3>';
     var head='<th>Plongeur</th>'+days7.map(function(k){var p=parts(k);return '<th>'+JC[dow(k)].replace('.','')+'<br><span class="sub">'+pad(p[2])+'/'+pad(p[1])+'</span></th>'}).join('')+'<th>Heures</th><th>Km</th><th>H route</th><th>IGD</th><th>Petit IGD</th>';
     var rows='',all=[];
     pids.forEach(function(pid){
@@ -1247,15 +1244,24 @@ function renderEquipe(){
       rows+='<tr><td><button class="link" data-pl="'+esc(pid)+'">'+esc(q.name)+'</button></td>'+days7.map(function(k){return '<td>'+(byDay[k]?fnum(byDay[k]):'')+'</td>'}).join('')+'<td><b>'+fnum(s.h)+'</b></td><td>'+fkm(s.km)+'</td><td>'+fnum(s.rh)+'</td><td>'+s.igd+'</td><td>'+s.pigd+'</td></tr>';
     });
     var t=sumLines(all),dayTot=days7.map(function(k){var n=0;all.forEach(function(l){if(l.date===k)n+=l.h});return n});
-    rows+='<tr class="tot"><td>Total chantier</td>'+dayTot.map(function(n){return '<td>'+(n?fnum(n):'')+'</td>'}).join('')+'<td>'+fnum(t.h)+'</td><td>'+fkm(t.km)+'</td><td>'+fnum(t.rh)+'</td><td>'+t.igd+'</td><td>'+t.pigd+'</td></tr>';
+    rows+='<tr class="tot"><td>Total semaine</td>'+dayTot.map(function(n){return '<td>'+(n?fnum(n):'')+'</td>'}).join('')+'<td>'+fnum(t.h)+'</td><td>'+fkm(t.km)+'</td><td>'+fnum(t.rh)+'</td><td>'+t.igd+'</td><td>'+t.pigd+'</td></tr>';
     h+='<div class="tw"><table class="eq"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
   });
   if(!list.length)h+='<div class="empty-note">'+(ROLE.admin?'Aucune saisie cette semaine. Choisissez un plongeur dans l’en-tête, puis remplissez sa semaine : elle apparaîtra ici, classée par dossier et par chantier.':'Aucune saisie cette semaine. Vos heures apparaîtront ici dès que vous les aurez saisies.')+'</div>';
   if(ROLE.admin)h+='<div class="sec"><h3>Plongeurs</h3><div class="tw"><table class="eq"><tbody>'+ROSTER.map(function(p){return '<tr><td>'+esc(p.name||'(sans nom)')+'</td><td><button class="link danger" data-eq="del" data-pid="'+esc(p.id)+'">Retirer</button></td></tr>'}).join('')+'</tbody></table></div><p class="hint">Retirer un plongeur supprime aussi toutes ses saisies.</p></div></div>';
   box.innerHTML=h;
 }
-function eqMatrix(x,agg,days7){
-  var pls=agg[x.s.id]||{},all=[],rows=[];
+function eqBlocks(agg){
+  var pls={};
+  eqList(agg).forEach(function(x){
+    var a=agg[x.s.id]||{};
+    Object.keys(a).forEach(function(pid){var m=pls[pid]||(pls[pid]={name:a[pid].name,lines:[]});m.lines=m.lines.concat(a[pid].lines)});
+  });
+  if(!Object.keys(pls).length)return [];
+  return [{title:eq.site==='all'?'Tous les chantiers':siteName(eq.site),pls:pls}];
+}
+function eqMatrix(x,days7){
+  var pls=x.pls,all=[],rows=[];
   sortedPids(pls).forEach(function(pid){
     var q=pls[pid],byDay={};
     q.lines.forEach(function(l){byDay[l.date]=(byDay[l.date]||0)+l.h;all.push(l)});
@@ -1263,14 +1269,14 @@ function eqMatrix(x,agg,days7){
     rows.push([q.name].concat(days7.map(function(k){return byDay[k]||''}),[s.h,s.km,s.rh,s.igd,s.pigd]));
   });
   var t=sumLines(all);
-  var tot=['Total chantier'].concat(days7.map(function(k){var n=0;all.forEach(function(l){if(l.date===k)n+=l.h});return n||''}),[t.h,t.km,t.rh,t.igd,t.pigd]);
+  var tot=['Total semaine'].concat(days7.map(function(k){var n=0;all.forEach(function(l){if(l.date===k)n+=l.h});return n||''}),[t.h,t.km,t.rh,t.igd,t.pigd]);
   return {rows:rows,total:tot};
 }
 async function exportEquipe(kind){
   var msg=$('#eqMsg');msg.className='msg';
   var a=eq.week,b=shiftIso(a,6),agg=weekAgg(a,b),days7=[],i;
   for(i=0;i<7;i++)days7.push(shiftIso(a,i));
-  var list=eqList(agg).filter(function(x){return agg[x.s.id]&&Object.keys(agg[x.s.id]).length});
+  var list=eqBlocks(agg);
   if(!list.length){msg.className='msg err';msg.textContent='Aucune saisie à exporter cette semaine.';return}
   if(!dl){msg.className='msg err';msg.textContent='L’export n’est pas disponible dans cette vue.';return}
   var scope=eq.site==='all'?'Tous les chantiers':'Chantier : '+(siteById(eq.site)?siteById(eq.site).name:'');
@@ -1288,9 +1294,9 @@ async function exportEquipe(kind){
       var fmt=function(r){return r.map(function(c,j){return j===0?c:(c===''?'':(j===9?fkm(c):fnum(c)))})};
       var y=38;
       list.forEach(function(x){
-        var m=eqMatrix(x,agg,days7);
+        var m=eqMatrix(x,days7);
         if(y>150){doc.addPage();y=16}
-        doc.setFontSize(13);doc.text(eqTitle(x,'  >  '),14,y);
+        doc.setFontSize(13);doc.text(x.title,14,y);
         var cs={0:{cellWidth:46}};for(var c=1;c<=7;c++)cs[c]={cellWidth:16};cs[8]={cellWidth:20};cs[9]={cellWidth:18};cs[10]={cellWidth:20};cs[11]={cellWidth:16};cs[12]={cellWidth:22};
         doc.autoTable({startY:y+3,head:[head],body:m.rows.map(fmt),foot:[fmt(m.total)],showFoot:'lastPage',
           styles:{fontSize:9.5,cellPadding:2,valign:'middle'},headStyles:{fillColor:[13,34,49],textColor:255,fontStyle:'bold'},
@@ -1305,8 +1311,8 @@ async function exportEquipe(kind){
       var headX=['Plongeur'].concat(days7.map(function(k){return JC[dow(k)].replace('.','')+' '+fdate(k).slice(0,5)}),tail);
       var aoa=[['Équipe - semaine '+isoWeek(a)],['Du '+fdate(a)+' au '+fdate(b)],[scope],[]];
       list.forEach(function(x){
-        var m=eqMatrix(x,agg,days7);
-        aoa.push([eqTitle(x,' > ')]);aoa.push(headX);
+        var m=eqMatrix(x,days7);
+        aoa.push([x.title]);aoa.push(headX);
         m.rows.forEach(function(r){aoa.push(r)});
         aoa.push(m.total);aoa.push([]);
       });
@@ -1328,14 +1334,14 @@ async function exportEquipeImg(){
   var msg=$('#eqMsg');msg.className='msg';
   var a=eq.week,b=shiftIso(a,6),agg=weekAgg(a,b),days7=[],i;
   for(i=0;i<7;i++)days7.push(shiftIso(a,i));
-  var list=eqList(agg).filter(function(x){return agg[x.s.id]&&Object.keys(agg[x.s.id]).length});
+  var list=eqBlocks(agg);
   if(!list.length){msg.className='msg err';msg.textContent='Aucune saisie à envoyer cette semaine.';return}
   var scope=eq.site==='all'?'Tous les chantiers':'Chantier : '+(siteById(eq.site)?siteById(eq.site).name:'');
   var slug=function(s){return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')};
   var base='equipe_S'+pad(isoWeek(a))+'_'+a+(eq.site==='all'?'':'_'+slug(siteName(eq.site)));
   var heads=['Plongeur'].concat(days7.map(function(k){return JC[dow(k)].replace('.','').toUpperCase()+' '+fdate(k).slice(0,5)}),['Heures','Km','H route','IGD','Petit IGD']);
   var cw=[250,92,92,92,92,92,92,92,100,86,100,76,110],W=0;cw.forEach(function(c){W+=c});
-  var M=24,RH=46,blocks=list.map(function(x){return {x:x,m:eqMatrix(x,agg,days7)}});
+  var M=24,RH=46,blocks=list.map(function(x){return {x:x,m:eqMatrix(x,days7)}});
   var H=M+90;blocks.forEach(function(bk){H+=44+RH*(bk.m.rows.length+2)+30});
   H+=M;
   var S2=2,cv=document.createElement('canvas');cv.width=(W+2*M)*S2;cv.height=H*S2;
@@ -1348,7 +1354,7 @@ async function exportEquipeImg(){
   var y=M+90;
   var fmt=function(v,j){return (j===0||v==='')?v:(j===9?fkm(v):fnum(v))};
   blocks.forEach(function(bk){
-    c.fillStyle='#BF4A0B';c.font='700 24px '+F;c.textAlign='left';c.fillText(eqTitle(bk.x,'  ›  '),M,y+16);
+    c.fillStyle='#BF4A0B';c.font='700 24px '+F;c.textAlign='left';c.fillText(bk.x.title,M,y+16);
     y+=44;
     function row(vals,fill,color,bold,head){
       c.fillStyle=fill;c.fillRect(M,y,W,RH);
