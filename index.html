@@ -158,6 +158,8 @@ td.rest{text-align:left;color:var(--muted)}
 .dc .stl{font-size:11px;font-weight:600;line-height:1.1;align-self:flex-end;text-align:right}
 .dc.ferie .stl{color:var(--ferie)}
 .dc.meteo .stl{color:var(--meteo)}
+.dc.nt,.wd.nt{background:var(--surface2);border:1px dashed var(--muted)}
+.dc.nt .stl{color:var(--muted)}
 table.eq td,table.eq th{text-align:center}
 table.eq td:first-child,table.eq th:first-child{text-align:left}
 .who{flex-wrap:wrap}
@@ -194,6 +196,7 @@ table.eq td:first-child,table.eq th:first-child{text-align:left}
 .logo{width:52px;height:52px;flex:none;object-fit:contain}
 .llogo{align-self:center;width:140px;height:140px;object-fit:contain;margin:-6px 0 -2px}
 .lcard h2{text-align:center}
+.stt{font-size:13px;font-weight:700;color:var(--muted)}
 .lmsg{min-height:1.3em;margin:0;color:#B3261E;font-size:13px}
 
 @media (max-width:640px){
@@ -270,6 +273,7 @@ table.eq td:first-child,table.eq th:first-child{text-align:left}
             <span><i style="border:1px solid var(--teal)"></i>Petit IGD (dernier jour)</span>
             <span><i style="background:var(--ferie-soft);border:1px solid var(--ferie)"></i>Férié</span>
             <span><i style="background:var(--meteo-soft);border:1px solid var(--meteo)"></i>Intempérie</span>
+            <span><i style="background:var(--surface2);border:1px dashed var(--muted)"></i>NT : journée non travaillée</span>
           </div>
           <div class="actions"><button class="btn primary" id="goWeek">Exporter cette semaine (PDF / Excel)</button></div>
           <details class="rules">
@@ -277,6 +281,7 @@ table.eq td:first-child,table.eq th:first-child{text-align:left}
             <p><b>Heures de route :</b> 1 h par tranche de 100 km commencée. 1 à 100 km = 1 h, 101 à 200 km = 2 h, 201 à 300 km = 3 h, et ainsi de suite.</p>
             <p><b>IGD :</b> une indemnité par jour travaillé dès le premier jour d'une série de jours consécutifs, sauf le dernier. Le dernier jour de la série donne un petit IGD. 3 jours de suite = 2 IGD + 1 petit IGD, 5 jours de suite = 4 IGD + 1 petit IGD. Un jour travaillé isolé ne donne rien.</p>
             <p><b>Kilomètres :</b> indiquez le départ et l'arrivée (ville ou adresse) pour garder la trace du trajet. L'application ne calcule pas la distance : le lien « Voir l'itinéraire » ouvre Google Maps pour la trouver, puis saisissez les kilomètres.</p>
+            <p><b>Journée non travaillée (NT) :</b> comme un férié, elle compte 0 h, sans trajet ni IGD, mais elle interrompt la série de jours consécutifs (comme un jour sans saisie).</p>
             <p><b>Férié / Intempérie :</b> choisissez le type de journée en haut de la fiche. La journée est comptée comme non travaillée (0 h), sans trajet, et ne donne pas d'IGD. Elle compte dans la série de jours consécutifs : elle ne supprime pas les IGD du jour d'après ni ceux de la veille.</p>
             <p>Les heures de route et les IGD se remplissent seuls. Modifiez la valeur à la main si besoin, le lien « auto » la remet au calcul.</p>
           </details>
@@ -339,9 +344,10 @@ function normalize(o){
 /* ---------- Calculs ---------- */
 function dayHours(k){var e=S.days[k];return e?e.lines.reduce(function(a,l){return a+(+l.h||0)},0):0}
 function worked(k){return dayHours(k)>0}
-function inSeries(k){return worked(k)||!!statusOf(k)}
+function inSeries(k){var s=statusOf(k);return worked(k)||(!!s&&s!=='nt')}
 function statusOf(k){var e=S.days[k];return e&&e.status?e.status:''}
-function statusLabel(s){return s==='ferie'?'Férié':s==='intemp'?'Intempérie':''}
+function statusLabel(s){return s==='ferie'?'Férié':s==='intemp'?'Intempérie':s==='nt'?'Non travaillée':''}
+function statusTag(s){return s==='ferie'?'F':s==='intemp'?'I':s==='nt'?'NT':''}
 function nextIso(s){var p=parts(s),t=new Date(Date.UTC(p[0],p[1]-1,p[2]+1));return iso(t.getUTCFullYear(),t.getUTCMonth()+1,t.getUTCDate())}
 function igdAuto(k){return worked(k)&&inSeries(nextIso(k))?1:0}
 function pigdAuto(k){return worked(k)&&inSeries(prevIso(k))&&!inSeries(nextIso(k))?1:0}
@@ -350,11 +356,11 @@ function pigdOf(k){var e=S.days[k];if(!e)return 0;return e.pigd!=null?e.pigd:pig
 function roadAuto(km){km=+km||0;return km>0?Math.ceil(km/100):0}
 function roadOf(l){return l.rh!=null?l.rh:roadAuto(l.km)}
 function tot(pred){
-  var t={h:0,km:0,rh:0,igd:0,pigd:0,days:0,ferie:0,intemp:0};
+  var t={h:0,km:0,rh:0,igd:0,pigd:0,days:0,ferie:0,intemp:0,nt:0};
   Object.keys(S.days).forEach(function(k){
     if(!pred(k))return;
     S.days[k].lines.forEach(function(l){t.h+=+l.h||0;t.km+=+l.km||0;t.rh+=roadOf(l)});
-    t.igd+=igdOf(k);t.pigd+=pigdOf(k);if(worked(k))t.days++;var stt=S.days[k].status;if(stt==='ferie')t.ferie++;else if(stt==='intemp')t.intemp++;
+    t.igd+=igdOf(k);t.pigd+=pigdOf(k);if(worked(k))t.days++;var stt=S.days[k].status;if(stt==='ferie')t.ferie++;else if(stt==='intemp')t.intemp++;else if(stt==='nt')t.nt++;
   });
   return t;
 }
@@ -586,7 +592,7 @@ function statsHtml(t){
     '<div class="stat"><span>Kilomètres</span><b class="num">'+fkm(t.km)+'<i>km</i></b></div>'+
     '<div class="stat"><span>Heures de route</span><b class="num">'+fnum(t.rh)+'<i>h</i></b></div>'+
     '<div class="stat igd"><span>IGD</span><b class="num">'+t.igd+'</b></div>'+
-    '<div class="stat igd"><span>Petit IGD</span><b class="num">'+t.pigd+'</b></div>'+(t.ferie?'<div class="stat"><span>Jours fériés</span><b class="num">'+t.ferie+'</b></div>':'')+(t.intemp?'<div class="stat"><span>Intempéries</span><b class="num">'+t.intemp+'</b></div>':'');
+    '<div class="stat igd"><span>Petit IGD</span><b class="num">'+t.pigd+'</b></div>'+(t.ferie?'<div class="stat"><span>Jours fériés</span><b class="num">'+t.ferie+'</b></div>':'')+(t.intemp?'<div class="stat"><span>Intempéries</span><b class="num">'+t.intemp+'</b></div>':'')+(t.nt?'<div class="stat"><span>Jours non travaillés</span><b class="num">'+t.nt+'</b></div>':'');
 }
 function inMonth(y,m){var p=y+'-'+pad(m)+'-';return function(k){return k.indexOf(p)===0}}
 function inYear(y){var p=y+'-';return function(k){return k.indexOf(p)===0}}
@@ -603,8 +609,8 @@ function renderCal(){
   for(var d=1;d<=dim;d++){
     if(d>1&&(lead+d-1)%7===0)h+=wkCell(iso(y,m,d));
     var k=iso(y,m,d),hrs=dayHours(k),ig=igdOf(k),pg=pigdOf(k),st=statusOf(k),we=(lead+d-1)%7>=5;
-    h+='<button class="dc'+(st==='ferie'?' ferie':st==='intemp'?' meteo':'')+(hrs>0?' on':'')+(we?' we':'')+(k===view.sel?' sel':'')+(k===TODAY?' today':'')+'" data-d="'+k+'" aria-pressed="'+(k===view.sel)+'" aria-label="'+esc(longDate(k))+(hrs>0?', '+fnum(hrs)+' heures':'')+(ig>0?', '+ig+' IGD':'')+(pg>0?', '+pg+' petit IGD':'')+(st?', '+statusLabel(st):'')+'">'+
-      '<span class="n">'+d+'</span>'+'<span class="igs">'+(ig>0?'<span class="ig">IGD'+(ig>1?'×'+ig:'')+'</span>':'')+(pg>0?'<span class="ig p">petit'+(pg>1?'×'+pg:'')+'</span>':'')+'</span>'+''+(st?'<span class="stl">'+(st==='ferie'?'Férié':'Intem.')+'</span>':'<span class="hv num">'+(hrs>0?fnum(hrs):'')+'</span>')+'</button>';
+    h+='<button class="dc'+(st==='ferie'?' ferie':st==='intemp'?' meteo':st==='nt'?' nt':'')+(hrs>0?' on':'')+(we?' we':'')+(k===view.sel?' sel':'')+(k===TODAY?' today':'')+'" data-d="'+k+'" aria-pressed="'+(k===view.sel)+'" aria-label="'+esc(longDate(k))+(hrs>0?', '+fnum(hrs)+' heures':'')+(ig>0?', '+ig+' IGD':'')+(pg>0?', '+pg+' petit IGD':'')+(st?', '+statusLabel(st):'')+'">'+
+      '<span class="n">'+d+'</span>'+'<span class="igs">'+(ig>0?'<span class="ig">IGD'+(ig>1?'×'+ig:'')+'</span>':'')+(pg>0?'<span class="ig p">petit'+(pg>1?'×'+pg:'')+'</span>':'')+'</span>'+''+(st?'<span class="stl">'+(st==='ferie'?'Férié':st==='intemp'?'Intem.':'NT')+'</span>':'<span class="hv num">'+(hrs>0?fnum(hrs):'')+'</span>')+'</button>';
   }
   $('#cal').innerHTML=h;
   $('#monthStats').innerHTML=statsHtml(tot(inMonth(y,m)));
@@ -641,17 +647,17 @@ function dayNavHtml(k){
   var mon=mondayOf(k),i,d,p,hr,st,o='<div class="daynav"><button class="btn icon" data-go="'+shiftIso(k,-1)+'" aria-label="Jour pr\u00e9c\u00e9dent">\u2039</button><div class="wkstrip">';
   for(i=0;i<7;i++){
     d=shiftIso(mon,i);p=parts(d);hr=dayHours(d);st=statusOf(d);
-    o+='<button class="wd'+(d===k?' sel':'')+(hr>0?' on':'')+(st?' '+st:'')+'" data-go="'+d+'" aria-pressed="'+(d===k)+'" aria-label="'+esc(longDate(d))+'"><span>'+JC[i].replace('.','')+'</span><b>'+p[2]+'</b><i>'+(st?(st==='ferie'?'F':'I'):(hr>0?fnum(hr):''))+'</i></button>';
+    o+='<button class="wd'+(d===k?' sel':'')+(hr>0?' on':'')+(st?' '+st:'')+'" data-go="'+d+'" aria-pressed="'+(d===k)+'" aria-label="'+esc(longDate(d))+'"><span>'+JC[i].replace('.','')+'</span><b>'+p[2]+'</b><i>'+(st?statusTag(st):(hr>0?fnum(hr):''))+'</i></button>';
   }
   return o+'</div><button class="btn icon" data-go="'+shiftIso(k,1)+'" aria-label="Jour suivant">\u203a</button></div>';
 }
-function statusSelectHtml(){return '<label class="f" style="margin-bottom:10px"><span class="l">Type de journ\u00e9e</span><select id="dayStatus"><option value="">Journ\u00e9e travaill\u00e9e</option><option value="ferie">Jour f\u00e9ri\u00e9</option><option value="intemp">Intemp\u00e9rie</option></select></label>'}
+function statusSelectHtml(){return '<label class="f" style="margin-bottom:10px"><span class="l">Type de journ\u00e9e</span><select id="dayStatus"><option value="">Journ\u00e9e travaill\u00e9e</option><option value="ferie">Jour f\u00e9ri\u00e9</option><option value="intemp">Intemp\u00e9rie</option><option value="nt">Journ\u00e9e non travaill\u00e9e</option></select></label>'}
 function renderEditor(){
   if(!S.sites.length){$('#editor').innerHTML='<div class="empty-note">Aucun chantier disponible pour le moment. Le responsable doit d\u2019abord en cr\u00e9er dans l\u2019onglet Chantiers.</div>';return}
   var k=view.sel;ensureDay(k);
   var e=S.days[k];
   if(e.status){
-    $('#editor').innerHTML=dayNavHtml(k)+'<div class="dayhead"><h2>'+esc(longDate(k))+'</h2><span class="hint">Semaine '+isoWeek(k)+'</span></div>'+statusSelectHtml()+'<div class="empty-note">Journée non travaillée : '+(e.status==='ferie'?'jour férié':'intempérie')+'. Aucune heure, trajet ni IGD pour ce jour, mais la série d\u2019IGD continue. Choisissez « Journée travaillée » pour la saisir normalement.</div>';
+    $('#editor').innerHTML=dayNavHtml(k)+'<div class="dayhead"><h2>'+esc(longDate(k))+'</h2><span class="hint">Semaine '+isoWeek(k)+'</span></div>'+statusSelectHtml()+'<div class="empty-note">'+(e.status==='nt'?'Journée non travaillée':'Journée non travaillée : '+(e.status==='ferie'?'jour férié':'intempérie'))+'. Aucune heure, trajet ni IGD pour ce jour'+(e.status==='nt'?'. Cette journée interrompt la série d\u2019IGD.':', mais la série d\u2019IGD continue.')+' Choisissez « Journée travaillée » pour la saisir normalement.</div>';
     $('#dayStatus').value=e.status;return;
   }
   var hasPrev=!!S.days[prevIso(k)]&&S.days[prevIso(k)].lines.some(function(l){return !isBlank(l)});
@@ -1238,14 +1244,14 @@ function renderEquipe(){
     var head='<th>Plongeur</th>'+days7.map(function(k){var p=parts(k);return '<th>'+JC[dow(k)].replace('.','')+'<br><span class="sub">'+pad(p[2])+'/'+pad(p[1])+'</span></th>'}).join('')+'<th>Heures</th><th>Km</th><th>H route</th><th>IGD</th><th>Petit IGD</th>';
     var rows='',all=[];
     pids.forEach(function(pid){
-      var q=pls[pid],byDay={};
+      var q=pls[pid],byDay={},stt=eqStat(pid,days7);
       q.lines.forEach(function(l){byDay[l.date]=(byDay[l.date]||0)+l.h;all.push(l)});
       var s=sumLines(q.lines);
-      rows+='<tr><td><button class="link" data-pl="'+esc(pid)+'">'+esc(q.name)+'</button></td>'+days7.map(function(k){return '<td>'+(byDay[k]?fnum(byDay[k]):'')+'</td>'}).join('')+'<td><b>'+fnum(s.h)+'</b></td><td>'+fkm(s.km)+'</td><td>'+fnum(s.rh)+'</td><td>'+s.igd+'</td><td>'+s.pigd+'</td></tr>';
+      rows+='<tr><td><button class="link" data-pl="'+esc(pid)+'">'+esc(q.name)+'</button></td>'+days7.map(function(k){return '<td>'+(byDay[k]?fnum(byDay[k]):(stt[k]?'<span class="stt">'+stt[k]+'</span>':''))+'</td>'}).join('')+'<td><b>'+fnum(s.h)+'</b></td><td>'+fkm(s.km)+'</td><td>'+fnum(s.rh)+'</td><td>'+s.igd+'</td><td>'+s.pigd+'</td></tr>';
     });
     var t=sumLines(all),dayTot=days7.map(function(k){var n=0;all.forEach(function(l){if(l.date===k)n+=l.h});return n});
     rows+='<tr class="tot"><td>Total semaine</td>'+dayTot.map(function(n){return '<td>'+(n?fnum(n):'')+'</td>'}).join('')+'<td>'+fnum(t.h)+'</td><td>'+fkm(t.km)+'</td><td>'+fnum(t.rh)+'</td><td>'+t.igd+'</td><td>'+t.pigd+'</td></tr>';
-    h+='<div class="tw"><table class="eq"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+    h+='<div class="tw"><table class="eq"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div><p class="hint">F : férié · I : intempérie · NT : journée non travaillée</p></div>';
   });
   if(!list.length)h+='<div class="empty-note">'+(ROLE.admin?'Aucune saisie cette semaine. Choisissez un plongeur dans l’en-tête, puis remplissez sa semaine : elle apparaîtra ici, classée par dossier et par chantier.':'Aucune saisie cette semaine. Vos heures apparaîtront ici dès que vous les aurez saisies.')+'</div>';
   if(ROLE.admin)h+='<div class="sec"><h3>Plongeurs</h3><div class="tw"><table class="eq"><tbody>'+ROSTER.map(function(p){return '<tr><td>'+esc(p.name||'(sans nom)')+'</td><td><button class="link danger" data-eq="del" data-pid="'+esc(p.id)+'">Retirer</button></td></tr>'}).join('')+'</tbody></table></div><p class="hint">Retirer un plongeur supprime aussi toutes ses saisies.</p></div></div>';
@@ -1257,16 +1263,27 @@ function eqBlocks(agg){
     var a=agg[x.s.id]||{};
     Object.keys(a).forEach(function(pid){var m=pls[pid]||(pls[pid]={name:a[pid].name,lines:[]});m.lines=m.lines.concat(a[pid].lines)});
   });
+  if(eq.site==='all'){
+    var d7=[],ii;for(ii=0;ii<7;ii++)d7.push(shiftIso(eq.week,ii));
+    ROSTER.forEach(function(p){
+      if(pls[p.id])return;var has=false;
+      withDays(p.id,function(){d7.forEach(function(k){if(statusOf(k))has=true})});
+      if(has)pls[p.id]={name:p.name||'(sans nom)',lines:[]};
+    });
+  }
   if(!Object.keys(pls).length)return [];
   return [{title:eq.site==='all'?'Tous les chantiers':siteName(eq.site),pls:pls}];
+}
+function eqStat(pid,days7){
+  var o={};withDays(pid,function(){days7.forEach(function(k){var s=statusOf(k);if(s)o[k]=statusTag(s)})});return o;
 }
 function eqMatrix(x,days7){
   var pls=x.pls,all=[],rows=[];
   sortedPids(pls).forEach(function(pid){
-    var q=pls[pid],byDay={};
+    var q=pls[pid],byDay={},stt=eqStat(pid,days7);
     q.lines.forEach(function(l){byDay[l.date]=(byDay[l.date]||0)+l.h;all.push(l)});
     var s=sumLines(q.lines);
-    rows.push([q.name].concat(days7.map(function(k){return byDay[k]||''}),[s.h,s.km,s.rh,s.igd,s.pigd]));
+    rows.push([q.name].concat(days7.map(function(k){return byDay[k]||stt[k]||''}),[s.h,s.km,s.rh,s.igd,s.pigd]));
   });
   var t=sumLines(all);
   var tot=['Total semaine'].concat(days7.map(function(k){var n=0;all.forEach(function(l){if(l.date===k)n+=l.h});return n||''}),[t.h,t.km,t.rh,t.igd,t.pigd]);
@@ -1291,7 +1308,7 @@ async function exportEquipe(kind){
       doc.setFontSize(20);doc.text('Équipe - semaine '+isoWeek(a),14,16);
       doc.setFontSize(11);doc.text('Du '+fdate(a)+' au '+fdate(b),14,23);doc.text(scope,14,29);
       var head=['Plongeur'].concat(days7.map(function(k){return JC[dow(k)].replace('.','')+'\n'+fdate(k).slice(0,5)}),tail);
-      var fmt=function(r){return r.map(function(c,j){return j===0?c:(c===''?'':(j===9?fkm(c):fnum(c)))})};
+      var fmt=function(r){return r.map(function(c,j){return (j===0||typeof c==='string')?c:(j===9?fkm(c):fnum(c))})};
       var y=38;
       list.forEach(function(x){
         var m=eqMatrix(x,days7);
@@ -1352,7 +1369,7 @@ async function exportEquipeImg(){
   c.font='700 30px '+F;c.textAlign='left';c.fillText('Équipe – semaine '+isoWeek(a),M,M+18);
   c.font='400 18px '+F;c.fillStyle='#566B79';c.fillText('Du '+fdate(a)+' au '+fdate(b)+'  ·  '+scope,M,M+52);
   var y=M+90;
-  var fmt=function(v,j){return (j===0||v==='')?v:(j===9?fkm(v):fnum(v))};
+  var fmt=function(v,j){return (j===0||typeof v==='string')?v:(j===9?fkm(v):fnum(v))};
   blocks.forEach(function(bk){
     c.fillStyle='#BF4A0B';c.font='700 24px '+F;c.textAlign='left';c.fillText(bk.x.title,M,y+16);
     y+=44;
